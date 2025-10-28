@@ -1,0 +1,142 @@
+{
+  "categories": [
+    {
+      "id": "pizzas",
+      "name": "Pizzas",
+      "icon": "pizza",
+      "order": 1
+    },
+    {
+      "id": "empanadas",
+      "name": "Empanadas",
+      "icon": "utensils",
+      "order": 2
+    },
+    {
+      "id": "bebidas",
+      "name": "Bebidas",
+      "icon": "glass-water",
+      "order": 3
+    },
+    {
+      "id": "postres",
+      "name": "Postres",
+      "icon": "cake",
+      "order": 4
+    }
+  ],
+  "sections": [
+    {
+      "id": "destacados",
+      "name": "Destacados",
+      "description": "Nuestros platos más populares",
+      "order": 1
+    },
+    {
+      "id": "menu-principal",
+      "name": "Menú Principal",
+      "description": "Platos principales",
+      "order": 2
+    },
+    {
+      "id": "acompañamientos",
+      "name": "Acompañamientos",
+      "description": "Bebidas y postres",
+      "order": 3
+    }
+  ],
+  "products": [
+    {
+      "id": "pizza-muzzarella",
+      "name": "Pizza Muzzarella",
+      "description": "Clásica pizza con muzzarella y salsa de tomate",
+      "basePrice": 4500,
+      "image": "/placeholder.svg?height=300&width=300",
+      "category": "pizzas",
+      "section": "destacados",
+      "available": true,
+      "featured": true,
+      "variants": [
+        { "id": "pequeña", "name": "Pequeña (8 porciones)", "price": 4500 },
+        { "id": "mediana", "name": "Mediana (10 porciones)", "price": 6000 },
+        { "id": "grande", "name": "Grande (12 porciones)", "price": 7500 }
+      ],
+      "complements": [
+        { "id": "aceitunas", "name": "Aceitunas", "price": 300 },
+        { "id": "morron", "name": "Morrón", "price": 300 },
+        { "id": "jamon", "name": "Jamón", "price": 500 },
+        { "id": "huevo", "name": "Huevo", "price": 400 }
+      ]
+    },
+    {
+      "id": "pizza-napolitana",
+      "name": "Pizza Napolitana",
+      "description": "Muzzarella, tomate, ajo y albahaca",
+      "basePrice": 5000,
+      "image": "/placeholder.svg?height=300&width=300",
+      "category": "pizzas",
+      "section": "menu-principal",
+      "available": true,
+      "featured": true,
+      "variants": [
+        { "id": "pequeña", "name": "Pequeña (8 porciones)", "price": 5000 },
+        { "id": "mediana", "name": "Mediana (10 porciones)", "price": 6500 },
+        { "id": "grande", "name": "Grande (12 porciones)", "price": 8000 }
+      ],
+      "complements": [
+        { "id": "aceitunas", "name": "Aceitunas", "price": 300 },
+        { "id": "morron", "name": "Morrón", "price": 300 },
+        { "id": "anchoas", "name": "Anchoas", "price": 600 }
+      ]
+    },
+    {
+      "id": "empanadas-carne",
+      "name": "Empanadas de Carne",
+      "description": "Empanadas caseras de carne cortada a cuchillo",
+      "basePrice": 350,
+      "image": "/placeholder.svg?height=300&width=300",
+      "category": "empanadas",
+      "section": "menu-principal",
+      "available": true,
+      "featured": false
+    },
+    {
+      "id": "empanadas-jyq",
+      "name": "Empanadas de Jamón y Queso",
+      "description": "Empanadas de jamón y queso",
+      "basePrice": 300,
+      "image": "/placeholder.svg?height=300&width=300",
+      "category": "empanadas",
+      "section": "menu-principal",
+      "available": true,
+      "featured": false
+    },
+    {
+      "id": "coca-cola",
+      "name": "Coca Cola",
+      "description": "Coca Cola 1.5L",
+      "basePrice": 1200,
+      "image": "/placeholder.svg?height=300&width=300",
+      "category": "bebidas",
+      "section": "acompañamientos",
+      "available": true,
+      "featured": false,
+      "variants": [
+        { "id": "500ml", "name": "500ml", "price": 800 },
+        { "id": "1.5l", "name": "1.5L", "price": 1200 },
+        { "id": "2.25l", "name": "2.25L", "price": 1800 }
+      ]
+    },
+    {
+      "id": "flan-casero",
+      "name": "Flan Casero",
+      "description": "Flan casero con dulce de leche y crema",
+      "basePrice": 1500,
+      "image": "/placeholder.svg?height=300&width=300",
+      "category": "postres",
+      "section": "acompañamientos",
+      "available": true,
+      "featured": false
+    }
+  ]
+}
