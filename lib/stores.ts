@@ -328,6 +328,17 @@ export async function syncCategoriesFromProducts(storeId: string, products: Prod
     })
   }
   
+  // Eliminar categorías que ya no existan en los productos
+  const categoriesToDelete = existingCategories.filter(c => !categoryNames.has(c.name))
+  for (const category of categoriesToDelete) {
+    try {
+      await deleteDoc(doc(categoriesRef, category.id))
+    } catch (err) {
+      // Ignorar errores de borrado individuales para no interrumpir toda la sincronización
+      // Podría loguearse en el futuro si es necesario
+    }
+  }
+  
   // Retornar todas las categorías (existentes + nuevas)
   return await getStoreCategories(storeId)
 }

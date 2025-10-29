@@ -1,4 +1,5 @@
 import type { Product, Category, Section } from "./types"
+import { loadProductsFromGoogleSheets } from "./google-sheets-parser"
 
 export async function loadProductsFromJSON(): Promise<{
   products: Product[]
@@ -24,4 +25,12 @@ export async function loadProductsFromJSON(): Promise<{
       sections: [],
     }
   }
+}
+
+export async function loadProductsFromGoogleSheetsURL(sheetUrl: string): Promise<{
+  products: Product[]
+  categories: Category[]
+  sections: Section[]
+}> {
+  return await loadProductsFromGoogleSheets(sheetUrl)
 }

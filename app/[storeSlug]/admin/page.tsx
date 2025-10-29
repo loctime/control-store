@@ -4,7 +4,8 @@ import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/lib/firebase"
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth"
-import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection, normalizeCategoryName, syncCategoriesFromProducts, getStoreCategories } from "@/lib/stores"
+import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection, normalizeCategoryName, syncCategoriesFromProducts, getStoreCategories, updateStoreConfig } from "@/lib/stores"
+import { createGoogleSheet, getProductsFromSheets, syncProductsFromSheets, createSheetBackup, getSheetInfo } from "@/lib/controlfile-api"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { Product, Store, ProductVariant } from "@/lib/types"
@@ -15,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload, AlertTriangle, CheckCircle2, FileText, TrendingUp, TrendingDown, RefreshCw } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload, AlertTriangle, CheckCircle2, FileText, TrendingUp, TrendingDown, RefreshCw, Settings, Link } from "lucide-react"
 
 export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug: string }> }) {
   const resolvedParams = use(params)
@@ -32,6 +33,12 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false)
   const [importPreview, setImportPreview] = useState<any>(null)
   const [pendingImportData, setPendingImportData] = useState<any>(null)
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState("")
+  const [isConfigOpen, setIsConfigOpen] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [sheetInfo, setSheetInfo] = useState<any>(null)
+  const [isCreatingSheet, setIsCreatingSheet] = useState(false)
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false)
 
   useEffect(() => {
     // Verificar autenticación
@@ -79,6 +86,13 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
             { id: "postres", name: "Postres", icon: "cake", order: 4 }
           ])
         }
+        // Cargar URL de Google Sheets si existe
+        if (storeData.config.googleSheetsUrl) {
+          setGoogleSheetsUrl(storeData.config.googleSheetsUrl)
+        }
+        
+        // Cargar información de la hoja configurada
+        await loadSheetInfo(storeData.id)
       }
 
       setIsLoading(false)
@@ -133,7 +147,14 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     try {
       const productRef = doc(db, 'apps', 'control-store', 'stores', store.id, 'products', productId)
       await deleteDoc(productRef)
-      setProducts(products.filter(p => p.id !== productId))
+      const updatedProducts = products.filter(p => p.id !== productId)
+      setProducts(updatedProducts)
+      // Sincronizar categorías luego de eliminar un producto
+      await syncCategoriesFromProducts(store.id, updatedProducts)
+      const updatedCategories = await getStoreCategories(store.id)
+      if (updatedCategories.length > 0) {
+        setCategoriesList(updatedCategories)
+      }
     } catch (error) {
       console.error("Error eliminando producto:", error)
       alert("Error al eliminar el producto")
@@ -583,6 +604,207 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
+  // Función para sincronizar desde Google Sheets
+  const handleSyncFromGoogleSheets = async () => {
+    if (!googleSheetsUrl || !store) return
+    
+    setIsSyncing(true)
+    try {
+      // Importar función dinámicamente para evitar problemas de SSR
+      const { loadProductsFromGoogleSheetsURL } = await import("@/lib/data-loader")
+      const data = await loadProductsFromGoogleSheetsURL(googleSheetsUrl)
+      
+      if (data.products.length === 0) {
+        alert("No se encontraron productos en la hoja de Google Sheets")
+        return
+      }
+
+      // Eliminar todos los productos actuales
+      const productsRef = getProductsCollection(store.id)
+      const currentSnapshot = await getDocs(productsRef)
+      const deletePromises = currentSnapshot.docs.map(async (docSnap) => {
+        await deleteDoc(doc(db, 'apps', 'control-store', 'stores', store.id, 'products', docSnap.id))
+      })
+      await Promise.all(deletePromises)
+
+      // Agregar productos nuevos
+      let added = 0
+      for (const productData of data.products) {
+        try {
+          await addDoc(productsRef, productData)
+          added++
+        } catch (error) {
+          console.error('Error agregando producto:', error)
+        }
+      }
+
+      // Sincronizar categorías desde los productos
+      if (added > 0) {
+        await syncCategoriesFromProducts(store.id, data.products)
+        // Recargar categorías actualizadas
+        const updatedCategories = await getStoreCategories(store.id)
+        if (updatedCategories.length > 0) {
+          setCategoriesList(updatedCategories)
+        }
+      }
+
+      alert(`✅ Se sincronizaron ${added} productos desde Google Sheets`)
+      await loadProducts(store.id)
+    } catch (error) {
+      console.error('Error sincronizando desde Google Sheets:', error)
+      alert('Error al sincronizar desde Google Sheets. Verifica que la URL sea correcta y la hoja sea pública.')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  // Función para cargar información de la hoja
+  const loadSheetInfo = async (storeId: string) => {
+    try {
+      const response = await getSheetInfo(storeId)
+      if (response.success && response.data) {
+        setSheetInfo(response.data)
+      }
+    } catch (error) {
+      console.error('Error cargando información de la hoja:', error)
+    }
+  }
+
+  // Función para crear hoja en Google Drive del cliente
+  const handleCreateGoogleSheet = async () => {
+    if (!store) return
+    
+    setIsCreatingSheet(true)
+    try {
+      // Abrir popup de OAuth de Google
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&` +
+        `redirect_uri=${window.location.origin}/api/oauth/google/callback&` +
+        `scope=https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets&` +
+        `response_type=code&` +
+        `access_type=offline&` +
+        `state=${store.id}`
+      
+      const popup = window.open(authUrl, 'google-auth', 'width=500,height=600')
+      
+      // Escuchar el mensaje del popup
+      const messageListener = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return
+        
+        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+          const { authCode } = event.data
+          createSheetWithAuthCode(authCode)
+          window.removeEventListener('message', messageListener)
+        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+          alert('Error en la autenticación de Google')
+          setIsCreatingSheet(false)
+          window.removeEventListener('message', messageListener)
+        }
+      }
+      
+      window.addEventListener('message', messageListener)
+      
+      // Limpiar listener si se cierra el popup
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed)
+          window.removeEventListener('message', messageListener)
+          setIsCreatingSheet(false)
+        }
+      }, 1000)
+      
+    } catch (error) {
+      console.error('Error creando hoja:', error)
+      alert('Error al crear la hoja')
+      setIsCreatingSheet(false)
+    }
+  }
+
+  // Función para crear la hoja con el código de autorización
+  const createSheetWithAuthCode = async (authCode: string) => {
+    if (!store) return
+    
+    try {
+      const response = await createGoogleSheet(store.id, authCode)
+      
+      if (response.success && response.data) {
+        setSheetInfo(response.data)
+        alert(`✅ Hoja creada correctamente!\n\nPuedes editarla aquí: ${response.data.editUrl}`)
+        await loadProducts(store.id) // Recargar productos
+      } else {
+        alert(`Error: ${response.error || 'No se pudo crear la hoja'}`)
+      }
+    } catch (error) {
+      console.error('Error creando hoja:', error)
+      alert('Error al crear la hoja')
+    } finally {
+      setIsCreatingSheet(false)
+    }
+  }
+
+  // Función para sincronizar desde Google Sheets (flujo híbrido)
+  const handleSyncFromGoogleSheets = async () => {
+    if (!store) return
+    
+    setIsSyncing(true)
+    try {
+      // 1. Sincronizar desde Google Sheets → Controlfile actualiza Firestore
+      const response = await syncProductsFromSheets(store.id)
+      
+      if (response.success) {
+        // 2. Recargar productos desde Firestore (ya actualizado por Controlfile)
+        await loadProducts(store.id)
+        await loadSheetInfo(store.id)
+        
+        alert(`✅ Se sincronizaron ${response.data?.count || 0} productos desde Google Sheets\n\nLos cambios ya están disponibles en la tienda pública.`)
+      } else {
+        alert(`Error: ${response.error || 'No se pudo sincronizar'}`)
+      }
+    } catch (error) {
+      console.error('Error sincronizando:', error)
+      alert('Error al sincronizar desde Google Sheets')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  // Función para crear backup
+  const handleCreateBackup = async () => {
+    if (!store) return
+    
+    setIsCreatingBackup(true)
+    try {
+      const response = await createSheetBackup(store.id)
+      
+      if (response.success) {
+        alert(`✅ Backup creado correctamente!\n\nURL: ${response.data?.backupUrl}`)
+      } else {
+        alert(`Error: ${response.error || 'No se pudo crear el backup'}`)
+      }
+    } catch (error) {
+      console.error('Error creando backup:', error)
+      alert('Error al crear el backup')
+    } finally {
+      setIsCreatingBackup(false)
+    }
+  }
+
+  // Función para guardar configuración de Google Sheets (legacy)
+  const handleSaveGoogleSheetsConfig = async () => {
+    if (!store) return
+    
+    try {
+      await updateStoreConfig(store.id, {
+        googleSheetsUrl: googleSheetsUrl
+      })
+      alert("✅ Configuración guardada correctamente")
+      setIsConfigOpen(false)
+    } catch (error) {
+      console.error('Error guardando configuración:', error)
+      alert('Error al guardar la configuración')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -698,9 +920,49 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Productos</CardTitle>
-                <CardDescription>Gestiona el catálogo de productos de tu tienda</CardDescription>
+                <CardDescription>
+                  Gestiona el catálogo de productos de tu tienda. 
+                  {sheetInfo ? " Los cambios se sincronizan con Google Sheets." : " Configura Google Sheets para sincronización automática."}
+                </CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {/* Google Sheets - Nueva integración */}
+                {!sheetInfo ? (
+                  <Button variant="outline" onClick={handleCreateGoogleSheet} disabled={isCreatingSheet}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    {isCreatingSheet ? "Creando hoja..." : "Crear hoja en Google Drive"}
+                  </Button>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" onClick={handleSyncFromGoogleSheets} disabled={isSyncing}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? "Sincronizando..." : "Sincronizar desde Google Sheets"}
+                      </Button>
+                      {sheetInfo.lastSynced && (
+                        <span className="text-xs text-muted-foreground">
+                          Última sync: {new Date(sheetInfo.lastSynced).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <Button variant="outline" onClick={handleCreateBackup} disabled={isCreatingBackup}>
+                      <Download className="w-4 h-4 mr-2" />
+                      {isCreatingBackup ? "Creando backup..." : "Crear backup"}
+                    </Button>
+                    <Button variant="outline" onClick={() => window.open(sheetInfo.editUrl, '_blank')}>
+                      <Link className="w-4 h-4 mr-2" />
+                      Abrir hoja
+                    </Button>
+                  </>
+                )}
+                
+                {/* Configuración legacy */}
+                <Button variant="outline" onClick={() => setIsConfigOpen(true)}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Configuración legacy
+                </Button>
+                
+                {/* Excel import/export */}
                 <Button variant="outline" onClick={handleDownloadTemplate}>
                   <Download className="w-4 h-4 mr-2" />
                   {products.length > 0 ? 'Exportar Excel' : 'Descargar Plantilla'}
@@ -962,6 +1224,80 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
             <Button onClick={handleConfirmImport} className="gap-2">
               <Upload className="w-4 h-4" />
               Confirmar Importación
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de configuración de Google Sheets */}
+      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Link className="w-6 h-6 text-primary" />
+              Configurar Google Sheets
+            </DialogTitle>
+            <DialogDescription>
+              Conecta tu tienda con una hoja de Google Sheets para sincronización automática
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">URL de Google Sheets (CSV)</label>
+              <input
+                type="url"
+                value={googleSheetsUrl}
+                onChange={(e) => setGoogleSheetsUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/[ID]/export?format=csv&gid=0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                Para obtener esta URL: Comparte tu hoja como "Cualquier persona con el enlace puede ver" 
+                y usa la URL de exportación CSV
+              </p>
+            </div>
+
+            {googleSheetsUrl && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900 mb-1">
+                      Estructura requerida de la hoja:
+                    </p>
+                    <p className="text-xs text-blue-700">
+                      Nombre | Descripción | Variedades 1 | Variedades 1 Título | ... | Categoría | Precio | Precio anterior | Imagen (URL)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-900 mb-1">
+                    Importante:
+                  </p>
+                  <ul className="text-xs text-amber-700 space-y-1">
+                    <li>• La hoja debe ser pública (cualquier persona con el enlace puede ver)</li>
+                    <li>• Usa la URL de exportación CSV, no la URL de edición</li>
+                    <li>• La primera fila debe contener los encabezados de columnas</li>
+                    <li>• Al sincronizar se reemplazarán todos los productos actuales</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setIsConfigOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveGoogleSheetsConfig}>
+              Guardar Configuración
             </Button>
           </div>
         </DialogContent>

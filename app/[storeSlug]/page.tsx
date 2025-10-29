@@ -13,6 +13,7 @@ import type { Store } from "@/lib/types"
 import { ShoppingCart, Store as StoreIcon, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { getStoreBySlug, getStoreCategories } from "@/lib/stores"
+import { getProductsFromSheets } from "@/lib/controlfile-api"
 import { db } from "@/lib/firebase"
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 
@@ -50,7 +51,8 @@ export default function StorePage({ params }: StorePageProps) {
       }
       setStore(storeData)
 
-      // Cargar productos de la tienda desde Firestore
+      // Cargar productos desde Firestore (flujo híbrido)
+      // La tienda pública siempre lee desde Firestore para máxima velocidad
       // Verificar que db esté disponible
       if (!db) {
         console.warn("Firebase no está inicializado")

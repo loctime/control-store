@@ -84,6 +84,7 @@ export interface StoreConfig {
   deliveryFee: number
   minOrderAmount: number
   openingHours: string
+  googleSheetsUrl?: string
 }
 
 export interface Store {
