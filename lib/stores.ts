@@ -80,6 +80,56 @@ export async function deleteStore(storeId: string): Promise<void> {
   await deleteDoc(storeRef)
 }
 
+export async function deleteStoreCompletely(storeId: string): Promise<void> {
+  try {
+    // 1. Obtener datos de la tienda antes de eliminarla
+    const store = await getStoreById(storeId)
+    if (!store) {
+      throw new Error("Tienda no encontrada")
+    }
+
+    // 2. Eliminar todos los productos
+    const products = await getStoreProducts(storeId)
+    for (const product of products) {
+      await deleteProductFromStore(storeId, product.id)
+    }
+
+    // 3. Eliminar todas las categorías
+    const categories = await getStoreCategories(storeId)
+    for (const category of categories) {
+      const categoryRef = doc(db, 'apps', APP_ID, 'stores', storeId, 'categories', category.id)
+      await deleteDoc(categoryRef)
+    }
+
+    // 4. Remover la tienda del array de stores del usuario
+    await removeStoreFromUser(store.ownerId, storeId)
+
+    // 5. Eliminar la tienda
+    await deleteStore(storeId)
+
+    console.log(`Tienda ${storeId} eliminada completamente`)
+  } catch (error) {
+    console.error("Error eliminando tienda completamente:", error)
+    throw error
+  }
+}
+
+export async function removeStoreFromUser(userId: string, storeId: string): Promise<void> {
+  const userRef = doc(db, 'apps', APP_ID, 'users', userId)
+  const userSnap = await getDoc(userRef)
+  
+  if (userSnap.exists()) {
+    const userData = userSnap.data()
+    const stores = userData.stores || []
+    const updatedStores = stores.filter((id: string) => id !== storeId)
+    
+    await updateDoc(userRef, {
+      stores: updatedStores,
+      updatedAt: serverTimestamp(),
+    })
+  }
+}
+
 export async function updateStoreOwner(storeId: string, newOwnerEmail: string, newOwnerId: string): Promise<void> {
   const storeRef = getStoreDoc(storeId)
   await updateDoc(storeRef, {
@@ -87,6 +137,82 @@ export async function updateStoreOwner(storeId: string, newOwnerEmail: string, n
     ownerId: newOwnerId,
     updatedAt: serverTimestamp(),
   })
+}
+
+export async function createTransferLink(storeId: string): Promise<string> {
+  const token = generateTransferToken()
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 1) // Expira en 24 horas
+  
+  const transferData = {
+    token,
+    storeId,
+    expiresAt: Timestamp.fromDate(expiresAt),
+    createdAt: serverTimestamp(),
+    used: false,
+  }
+  
+  const docRef = await addDoc(collection(db, 'apps', APP_ID, 'transfers'), transferData)
+  
+  // Generar URL de transferencia
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://tudominio.com'
+  return `${baseUrl}/admin/transfer/${token}`
+}
+
+function generateTransferToken(): string {
+  return `transfer_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+}
+
+export async function getTransferByToken(token: string): Promise<any> {
+  const q = query(collection(db, 'apps', APP_ID, 'transfers'), where('token', '==', token))
+  const querySnapshot = await getDocs(q)
+  
+  if (querySnapshot.empty) return null
+  
+  const doc = querySnapshot.docs[0]
+  const transferData = { id: doc.id, ...doc.data() }
+  
+  // Verificar si no ha expirado
+  const now = new Date()
+  const expiresAt = transferData.expiresAt.toDate()
+  
+  if (now > expiresAt) {
+    return null // Expirado
+  }
+  
+  // Obtener datos de la tienda
+  const store = await getStoreById(transferData.storeId)
+  return { ...transferData, store }
+}
+
+export async function completeTransfer(token: string, newOwnerEmail: string, newOwnerId: string): Promise<void> {
+  // Obtener datos de transferencia
+  const transferData = await getTransferByToken(token)
+  if (!transferData) {
+    throw new Error("Token de transferencia no válido")
+  }
+  
+  const storeId = transferData.storeId
+  
+  // Actualizar dueño de la tienda
+  await updateStoreOwner(storeId, newOwnerEmail, newOwnerId)
+  
+  // Agregar tienda al usuario
+  await addStoreToUser(newOwnerId, storeId)
+  
+  // Marcar transferencia como usada
+  const q = query(collection(db, 'apps', APP_ID, 'transfers'), where('token', '==', token))
+  const querySnapshot = await getDocs(q)
+  
+  if (!querySnapshot.empty) {
+    const transferRef = querySnapshot.docs[0].ref
+    await updateDoc(transferRef, {
+      used: true,
+      usedByEmail: newOwnerEmail,
+      usedById: newOwnerId,
+      usedAt: serverTimestamp(),
+    })
+  }
 }
 
 export async function getStoreBySlug(slug: string): Promise<Store | null> {

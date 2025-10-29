@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { getAllStores, deleteStore, updateStoreOwner } from "@/lib/stores"
+import { getAllStores, deleteStoreCompletely, updateStoreOwner, createTransferLink } from "@/lib/stores"
 import type { Store } from "@/lib/types"
-import { Edit, Trash2, ExternalLink, Calendar, User, Mail } from "lucide-react"
+import { Edit, Trash2, ExternalLink, Calendar, User, Mail, Link, Copy } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
 interface StoresListProps {
@@ -23,8 +23,8 @@ export function StoresList({ onStoreUpdate }: StoresListProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [editingStore, setEditingStore] = useState<Store | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [newOwnerEmail, setNewOwnerEmail] = useState("")
-  const [newOwnerId, setNewOwnerId] = useState("")
+  const [transferLink, setTransferLink] = useState("")
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false)
 
   const loadStores = async () => {
     try {
@@ -49,40 +49,47 @@ export function StoresList({ onStoreUpdate }: StoresListProps) {
 
   const handleEditStore = (store: Store) => {
     setEditingStore(store)
-    setNewOwnerEmail(store.ownerEmail)
-    setNewOwnerId(store.ownerId)
+    setTransferLink("")
     setIsEditDialogOpen(true)
   }
 
-  const handleUpdateOwner = async () => {
-    if (!editingStore || !newOwnerEmail || !newOwnerId) return
+  const handleGenerateTransferLink = async () => {
+    if (!editingStore) return
 
     try {
-      await updateStoreOwner(editingStore.id, newOwnerEmail, newOwnerId)
+      setIsGeneratingLink(true)
+      const link = await createTransferLink(editingStore.id)
+      setTransferLink(link)
       toast({
-        title: "Éxito",
-        description: "Dueño de la tienda actualizado correctamente",
+        title: "Link generado",
+        description: "Link de transferencia creado exitosamente",
       })
-      setIsEditDialogOpen(false)
-      setEditingStore(null)
-      loadStores()
-      onStoreUpdate?.()
     } catch (error) {
-      console.error("Error actualizando dueño:", error)
+      console.error("Error generando link:", error)
       toast({
         title: "Error",
-        description: "No se pudo actualizar el dueño de la tienda",
+        description: "No se pudo generar el link de transferencia",
         variant: "destructive",
       })
+    } finally {
+      setIsGeneratingLink(false)
     }
+  }
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(transferLink)
+    toast({
+      title: "Copiado",
+      description: "Link copiado al portapapeles",
+    })
   }
 
   const handleDeleteStore = async (storeId: string, storeName: string) => {
     try {
-      await deleteStore(storeId)
+      await deleteStoreCompletely(storeId)
       toast({
         title: "Éxito",
-        description: `Tienda "${storeName}" eliminada correctamente`,
+        description: `Tienda "${storeName}" y todos sus datos eliminados correctamente`,
       })
       loadStores()
       onStoreUpdate?.()
@@ -90,7 +97,7 @@ export function StoresList({ onStoreUpdate }: StoresListProps) {
       console.error("Error eliminando tienda:", error)
       toast({
         title: "Error",
-        description: "No se pudo eliminar la tienda",
+        description: "No se pudo eliminar la tienda completamente",
         variant: "destructive",
       })
     }
@@ -215,9 +222,14 @@ export function StoresList({ onStoreUpdate }: StoresListProps) {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>¿Eliminar tienda?</AlertDialogTitle>
+                                <AlertDialogTitle>¿Eliminar tienda completamente?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Esta acción no se puede deshacer. Se eliminará permanentemente la tienda "{store.name}" y todos sus datos asociados.
+                                  Esta acción no se puede deshacer. Se eliminará permanentemente:
+                                  <br />• La tienda "{store.name}"
+                                  <br />• Todos los productos
+                                  <br />• Todas las categorías
+                                  <br />• La configuración de Google Sheets
+                                  <br />• Se removerá del usuario dueño
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -242,41 +254,68 @@ export function StoresList({ onStoreUpdate }: StoresListProps) {
         </CardContent>
       </Card>
 
-      {/* Dialog para editar dueño */}
+      {/* Dialog para transferir tienda */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cambiar dueño de la tienda</DialogTitle>
+            <DialogTitle>Transferir tienda</DialogTitle>
             <DialogDescription>
-              Actualiza el dueño de la tienda "{editingStore?.name}"
+              Genera un link para transferir la tienda "{editingStore?.name}" a un nuevo dueño
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="ownerEmail">Email del nuevo dueño</Label>
-              <Input
-                id="ownerEmail"
-                type="email"
-                value={newOwnerEmail}
-                onChange={(e) => setNewOwnerEmail(e.target.value)}
-                placeholder="nuevo@ejemplo.com"
-              />
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                <Label className="font-medium">Dueño actual</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">{editingStore?.ownerEmail}</p>
             </div>
-            <div>
-              <Label htmlFor="ownerId">ID del nuevo dueño</Label>
-              <Input
-                id="ownerId"
-                value={newOwnerId}
-                onChange={(e) => setNewOwnerId(e.target.value)}
-                placeholder="ID del usuario"
-              />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Link de transferencia</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Comparte este link con el nuevo dueño para transferir la tienda
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleGenerateTransferLink}
+                  disabled={isGeneratingLink}
+                  size="sm"
+                >
+                  <Link className="w-4 h-4 mr-2" />
+                  {isGeneratingLink ? "Generando..." : "Generar Link"}
+                </Button>
+              </div>
+
+              {transferLink && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={transferLink}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      onClick={handleCopyLink}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    ⚠️ Este link expira en 24 horas. La transferencia incluirá automáticamente la configuración de Google Sheets.
+                  </p>
+                </div>
+              )}
             </div>
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleUpdateOwner}>
-                Actualizar dueño
+                Cerrar
               </Button>
             </div>
           </div>
