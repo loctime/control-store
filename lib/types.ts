@@ -74,3 +74,34 @@ export interface StoreConfig {
   minOrderAmount: number
   openingHours: string
 }
+
+export interface Store {
+  id: string
+  slug: string
+  name: string
+  ownerEmail: string
+  ownerId: string
+  config: StoreConfig
+  createdAt: Date | any
+  updatedAt: Date | any
+}
+
+export interface Invitation {
+  id: string
+  token: string
+  storeName: string
+  used: boolean
+  usedByEmail?: string
+  usedById?: string
+  expiresAt: Date | any
+  createdAt: Date | any
+}
+
+export interface User {
+  id: string
+  email: string
+  displayName: string
+  stores: string[] // Array de IDs de tiendas
+  createdAt: Date | any
+  updatedAt: Date | any
+}

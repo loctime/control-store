@@ -1,0 +1,206 @@
+import { db } from './firebase'
+import { 
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  where, 
+  setDoc, 
+  updateDoc,
+  addDoc,
+  serverTimestamp,
+  Timestamp,
+  arrayUnion 
+} from 'firebase/firestore'
+import type { Store, Invitation, User } from './types'
+
+// Constante para el nombre de la app en la estructura compartida
+const APP_ID = 'control-store'
+
+// Funciones auxiliares para crear referencias a colecciones
+const getStoresCollection = () => collection(db, 'apps', APP_ID, 'stores')
+const getInvitationsCollection = () => collection(db, 'apps', APP_ID, 'invitations')
+const getStoreDoc = (storeId: string) => doc(db, 'apps', APP_ID, 'stores', storeId)
+const getProductsCollection = (storeId: string) => collection(db, 'apps', APP_ID, 'stores', storeId, 'products')
+
+// ===== STORES =====
+
+export async function createStore(data: Omit<Store, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  const docRef = await addDoc(getStoresCollection(), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return docRef.id
+}
+
+export async function getStoreBySlug(slug: string): Promise<Store | null> {
+  const q = query(getStoresCollection(), where('slug', '==', slug))
+  const querySnapshot = await getDocs(q)
+  
+  if (querySnapshot.empty) return null
+  
+  const doc = querySnapshot.docs[0]
+  return { id: doc.id, ...doc.data() } as Store
+}
+
+export async function getStoreById(id: string): Promise<Store | null> {
+  const docRef = getStoreDoc(id)
+  const docSnap = await getDoc(docRef)
+  
+  if (!docSnap.exists()) return null
+  return { id: docSnap.id, ...docSnap.data() } as Store
+}
+
+export async function updateStoreConfig(storeId: string, config: Partial<Store['config']>): Promise<void> {
+  const storeRef = getStoreDoc(storeId)
+  await updateDoc(storeRef, {
+    config,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+// ===== INVITATIONS =====
+
+export async function createInvitation(storeName: string): Promise<string> {
+  const token = generateInvitationToken()
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 7) // Expira en 7 días
+  
+  const invitationData: Omit<Invitation, 'id' | 'createdAt'> = {
+    token,
+    storeName,
+    used: false,
+    expiresAt: Timestamp.fromDate(expiresAt),
+  }
+  
+  const docRef = await addDoc(getInvitationsCollection(), {
+    ...invitationData,
+    createdAt: serverTimestamp(),
+  })
+  
+  return token
+}
+
+export async function getInvitationByToken(token: string): Promise<Invitation | null> {
+  const q = query(getInvitationsCollection(), where('token', '==', token))
+  const querySnapshot = await getDocs(q)
+  
+  if (querySnapshot.empty) return null
+  
+  const doc = querySnapshot.docs[0]
+  return { id: doc.id, ...doc.data() } as Invitation
+}
+
+export async function markInvitationAsUsed(token: string, email: string, userId: string): Promise<void> {
+  const q = query(getInvitationsCollection(), where('token', '==', token))
+  const querySnapshot = await getDocs(q)
+  
+  if (querySnapshot.empty) return
+  
+  const docRef = querySnapshot.docs[0].ref
+  await updateDoc(docRef, {
+    used: true,
+    usedByEmail: email,
+    usedById: userId,
+  })
+}
+
+function generateInvitationToken(): string {
+  return `inv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+}
+
+// Verificar si el slug está disponible
+export function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
+    .replace(/[^a-z0-9]+/g, '-') // Reemplazar espacios y caracteres especiales
+    .replace(/^-+|-+$/g, '') // Eliminar guiones al inicio y final
+}
+
+// Verificar disponibilidad del slug
+export async function isSlugAvailable(slug: string): Promise<boolean> {
+  const existing = await getStoreBySlug(slug)
+  return existing === null
+}
+
+// Verificar si un usuario ya tiene una tienda (deprecado - ahora permitimos múltiples)
+export async function getUserStoreByEmail(email: string): Promise<Store | null> {
+  const q = query(getStoresCollection(), where('ownerEmail', '==', email))
+  const querySnapshot = await getDocs(q)
+  
+  if (querySnapshot.empty) return null
+  
+  const doc = querySnapshot.docs[0]
+  return { id: doc.id, ...doc.data() } as Store
+}
+
+// Crear o actualizar documento de usuario
+export async function ensureUserDocument(userId: string, email: string, displayName?: string): Promise<void> {
+  const userRef = doc(db, 'apps', APP_ID, 'users', userId)
+  const userSnap = await getDoc(userRef)
+  
+  if (!userSnap.exists()) {
+    // Crear nuevo usuario
+    await setDoc(userRef, {
+      email,
+      displayName: displayName || email.split('@')[0],
+      stores: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  } else {
+    // Actualizar si cambió el nombre
+    if (displayName && userSnap.data().displayName !== displayName) {
+      await updateDoc(userRef, {
+        displayName,
+        updatedAt: serverTimestamp(),
+      })
+    }
+  }
+}
+
+// Agregar tienda al array de stores del usuario
+export async function addStoreToUser(userId: string, storeId: string): Promise<void> {
+  const userRef = doc(db, 'apps', APP_ID, 'users', userId)
+  const userSnap = await getDoc(userRef)
+  
+  if (userSnap.exists()) {
+    await updateDoc(userRef, {
+      stores: arrayUnion(storeId),
+      updatedAt: serverTimestamp(),
+    })
+  }
+}
+
+// Obtener tiendas de un usuario
+export async function getUserStores(userId: string): Promise<Store[]> {
+  const userRef = doc(db, 'apps', APP_ID, 'users', userId)
+  const userSnap = await getDoc(userRef)
+  
+  if (!userSnap.exists()) return []
+  
+  const storeIds = userSnap.data().stores || []
+  if (storeIds.length === 0) return []
+  
+  // Obtener todas las tiendas del usuario
+  const stores = await Promise.all(
+    storeIds.map(async (storeId: string) => {
+      return await getStoreById(storeId)
+    })
+  )
+  
+  return stores.filter(Boolean) as Store[]
+}
+
+// Verificar si un usuario es owner de una tienda específica
+export async function isUserOwnerOfStore(userId: string, storeSlug: string): Promise<boolean> {
+  const store = await getStoreBySlug(storeSlug)
+  if (!store) return false
+  
+  return store.ownerId === userId
+}
+

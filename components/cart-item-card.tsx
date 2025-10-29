@@ -29,7 +29,7 @@ export function CartItemCard({ item, onUpdateQuantity, onRemove }: CartItemCardP
     <Card>
       <CardContent className="p-4">
         <div className="flex gap-4">
-          {/* Imagean */}
+          {/* Imagen */}
           <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden">
             <Image
               src={item.product.image || "/placeholder.svg"}

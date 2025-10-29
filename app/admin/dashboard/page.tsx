@@ -9,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProductForm } from "@/components/admin/product-form"
+import { InvitationLinkGenerator } from "@/components/admin/invitation-link-generator"
 import type { Product } from "@/lib/types"
-import { Plus, Edit, Trash2, LogOut, Store } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store, Users } from "lucide-react"
 import { loadProductsFromJSON } from "@/lib/data-loader"
 
 export default function AdminDashboard() {
@@ -116,19 +118,36 @@ export default function AdminDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Productos</CardTitle>
-                <CardDescription>Gestiona el catálogo de productos</CardDescription>
-              </div>
-              <Button onClick={handleCreateProduct}>
-                <Plus className="w-4 h-4 mr-2" />
-                Nuevo producto
-              </Button>
-            </div>
-          </CardHeader>
+        <Tabs defaultValue="invitations" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="invitations" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Invitaciones
+            </TabsTrigger>
+            <TabsTrigger value="products" className="flex items-center gap-2">
+              <Store className="w-4 h-4" />
+              Productos
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="invitations" className="space-y-4">
+            <InvitationLinkGenerator />
+          </TabsContent>
+
+          <TabsContent value="products">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Productos</CardTitle>
+                    <CardDescription>Gestiona el catálogo de productos</CardDescription>
+                  </div>
+                  <Button onClick={handleCreateProduct}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuevo producto
+                  </Button>
+                </div>
+              </CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
@@ -197,7 +216,9 @@ export default function AdminDashboard() {
               </Table>
             </div>
           </CardContent>
-        </Card>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         <div className="grid md:grid-cols-3 gap-4">
           <Card>
