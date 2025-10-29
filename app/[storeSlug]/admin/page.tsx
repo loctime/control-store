@@ -624,9 +624,10 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     setIsCreatingSheet(true)
     try {
       // Abrir popup de OAuth de Google
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&` +
-        `redirect_uri=${window.location.origin}/api/oauth/google/callback&` +
+        `redirect_uri=${origin}/api/oauth/google/callback&` +
         `scope=https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets&` +
         `response_type=code&` +
         `access_type=offline&` +
