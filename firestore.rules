@@ -117,8 +117,7 @@ service cloud.firestore {
         && isInt("order")
         && isBool("isActive")
         && unchanged("createdAt")
-        && isBool("isActive")
-        && isInt("order");
+        && isTs("updatedAt");
 
       allow delete: if ownerIs("userId");
     }
@@ -144,6 +143,32 @@ service cloud.firestore {
         && isInt("order")
         && isBool("isActive")
         && isBool("isPublic")
+        && unchanged("createdAt")
+        && isTs("updatedAt");
+
+      allow delete: if ownerIs("userId");
+    }
+
+    // Galerías de controlbio
+    match /apps/controlbio/galleries/{galleryId} {
+      allow read: if publicRead("isActive") || (isAuth() && resource.data.userId == uid());
+
+      allow create: if ownerIs("userId")
+        && strBetween("name", 1, 100)
+        && request.resource.data.layout in ['grid','masonry','carousel']
+        && request.resource.data.imageFileIds is list
+        && isInt("order")
+        && isBool("isActive")
+        && isTs("createdAt")
+        && isTs("updatedAt");
+
+      allow update: if ownerIs("userId")
+        && unchanged("userId")
+        && strBetween("name", 1, 100)
+        && request.resource.data.layout in ['grid','masonry','carousel']
+        && request.resource.data.imageFileIds is list
+        && isInt("order")
+        && isBool("isActive")
         && unchanged("createdAt")
         && isTs("updatedAt");
 

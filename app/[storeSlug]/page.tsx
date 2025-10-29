@@ -178,9 +178,9 @@ export default function StorePage({ params }: StorePageProps) {
         {featuredProducts.length > 0 && (
           <section>
             <h2 className="text-2xl font-bold mb-4">Destacados</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
               {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} onAddToCart={handleProductClick} />
+                <ProductCard key={product.id} product={product} onProductClick={handleProductClick} />
               ))}
             </div>
           </section>
@@ -198,9 +198,9 @@ export default function StorePage({ params }: StorePageProps) {
 
         {/* Lista de productos */}
         <section>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
             {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} onAddToCart={handleProductClick} />
+              <ProductCard key={product.id} product={product} onProductClick={handleProductClick} />
             ))}
           </div>
           {filteredProducts.length === 0 && (
