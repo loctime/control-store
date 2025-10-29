@@ -28,9 +28,14 @@ export function InvitationLinkGenerator() {
 
     try {
       const token = await createInvitation(storeName)
-      const link = `${window.location.origin}/admin/signup/${token}`
-      setGeneratedLink(link)
-      setStoreName("")
+      // Verificar que estamos en el navegador antes de usar window.location
+      if (typeof window !== 'undefined') {
+        const link = `${window.location.origin}/admin/signup/${token}`
+        setGeneratedLink(link)
+        setStoreName("")
+      } else {
+        setError("No se pudo determinar la URL")
+      }
     } catch (error) {
       console.error("Error generando link:", error)
       setError("Error al generar el link de invitación")

@@ -18,11 +18,30 @@ import type { Store, Invitation, User } from './types'
 // Constante para el nombre de la app en la estructura compartida
 const APP_ID = 'control-store'
 
+// Verificar si Firebase está disponible
+function checkFirebaseConnection() {
+  if (!db) {
+    throw new Error('Firebase no está inicializado. Verifica las variables de entorno.')
+  }
+}
+
 // Funciones auxiliares para crear referencias a colecciones
-const getStoresCollection = () => collection(db, 'apps', APP_ID, 'stores')
-const getInvitationsCollection = () => collection(db, 'apps', APP_ID, 'invitations')
-const getStoreDoc = (storeId: string) => doc(db, 'apps', APP_ID, 'stores', storeId)
-const getProductsCollection = (storeId: string) => collection(db, 'apps', APP_ID, 'stores', storeId, 'products')
+const getStoresCollection = () => {
+  checkFirebaseConnection()
+  return collection(db, 'apps', APP_ID, 'stores')
+}
+const getInvitationsCollection = () => {
+  checkFirebaseConnection()
+  return collection(db, 'apps', APP_ID, 'invitations')
+}
+const getStoreDoc = (storeId: string) => {
+  checkFirebaseConnection()
+  return doc(db, 'apps', APP_ID, 'stores', storeId)
+}
+const getProductsCollection = (storeId: string) => {
+  checkFirebaseConnection()
+  return collection(db, 'apps', APP_ID, 'stores', storeId, 'products')
+}
 
 // ===== STORES =====
 

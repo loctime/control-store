@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app'
+import { initializeApp, getApps } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
@@ -11,8 +11,29 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_REBASE_APP_ID,
 }
 
-const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
-export const db = getFirestore(app)
+// Solo inicializar Firebase si tenemos las variables de entorno necesarias
+// y no está ya inicializado
+let app
+let auth
+let db
+
+if (
+  typeof window !== 'undefined' &&
+  firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId
+) {
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig)
+    auth = getAuth(app)
+    db = getFirestore(app)
+  } else {
+    app = getApps()[0]
+    auth = getAuth(app)
+    db = getFirestore(app)
+  }
+}
+
+export { auth, db }
 export default app
 

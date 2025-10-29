@@ -100,7 +100,7 @@ export interface Invitation {
 export interface User {
   id: string
   email: string
-  displayName: string
+  displayName?: string
   stores: string[] // Array de IDs de tiendas
   createdAt: Date | any
   updatedAt: Date | any

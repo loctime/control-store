@@ -1,5 +1,10 @@
 "use client"
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic'
+export const dynamicParams = true
+export const revalidate = 0
+
 import { useEffect, useState } from "react"
 import { useStore } from "@/lib/store"
 import { ProductCard } from "@/components/product-card"

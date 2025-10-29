@@ -1,5 +1,10 @@
 "use client"
 
+// Forzar renderizado dinámico
+export const dynamic = 'force-dynamic'
+export const dynamicParams = true
+export const revalidate = 0
+
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useAuthState } from "react-firebase-hooks/auth"
@@ -18,7 +23,8 @@ export default function SignupPage() {
   const params = useParams()
   const router = useRouter()
   const token = params.token as string
-  const [user] = useAuthState(auth)
+  // useAuthState requiere auth, así que lo protegemos
+  const [user] = useAuthState(auth || null)
   
   const [invitation, setInvitation] = useState<any>(null)
   const [storeName, setStoreName] = useState("")
@@ -67,6 +73,10 @@ export default function SignupPage() {
   }
 
   async function handleGoogleSignIn() {
+    if (!auth) {
+      setError("Firebase no está inicializado correctamente")
+      return
+    }
     try {
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
@@ -82,9 +92,9 @@ export default function SignupPage() {
   }
 
   async function handleSignOut() {
+    if (!auth) return
     try {
       await signOut(auth)
-      setEmailAlreadyHasStore(false)
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
     }
@@ -118,7 +128,7 @@ export default function SignupPage() {
       setError("")
 
       // 1. Crear o actualizar documento de usuario
-      await ensureUserDocument(user.uid, user.email || "", user.displayName || undefined)
+      await ensureUserDocument(user.uid, user.email || "", user.displayName ?? undefined)
 
       // 2. Crear la tienda
       const storeId = await createStore({
@@ -157,8 +167,8 @@ export default function SignupPage() {
             storeId: storeId,
           },
         }
-        // Intentar crear la carpeta en la colección compartida de files
-        await setDoc(doc(db, 'files', mainFolder.id), mainFolder)
+        // Usar la estructura compartida correcta: apps > control-store > files
+        await setDoc(doc(db, 'apps', 'control-store', 'files', mainFolder.id), mainFolder)
       } catch (error) {
         console.warn("No se pudo crear carpeta en ControlFile:", error)
         // No es crítico si falla
