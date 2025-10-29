@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { auth } from "@/lib/firebase"
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth"
 import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection, normalizeCategoryName, syncCategoriesFromProducts, getStoreCategories, updateStoreConfig } from "@/lib/stores"
@@ -820,8 +821,10 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => router.push(`/${resolvedParams.storeSlug}`)}>
-                Ver tienda
+              <Button variant="outline" asChild>
+                <Link href={`/${resolvedParams.storeSlug}`} target="_blank" rel="noopener noreferrer">
+                  Ver tienda
+                </Link>
               </Button>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />

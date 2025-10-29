@@ -118,7 +118,7 @@ export function StoresList({ onStoreUpdate }: StoresListProps) {
   }
 
   const getStoreUrl = (slug: string) => {
-    return `${window.location.origin}/${slug}`
+    return `/${slug}`
   }
 
   if (isLoading) {
