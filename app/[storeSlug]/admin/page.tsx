@@ -604,59 +604,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
-  // Función para sincronizar desde Google Sheets
-  const handleSyncFromGoogleSheets = async () => {
-    if (!googleSheetsUrl || !store) return
-    
-    setIsSyncing(true)
-    try {
-      // Importar función dinámicamente para evitar problemas de SSR
-      const { loadProductsFromGoogleSheetsURL } = await import("@/lib/data-loader")
-      const data = await loadProductsFromGoogleSheetsURL(googleSheetsUrl)
-      
-      if (data.products.length === 0) {
-        alert("No se encontraron productos en la hoja de Google Sheets")
-        return
-      }
-
-      // Eliminar todos los productos actuales
-      const productsRef = getProductsCollection(store.id)
-      const currentSnapshot = await getDocs(productsRef)
-      const deletePromises = currentSnapshot.docs.map(async (docSnap) => {
-        await deleteDoc(doc(db, 'apps', 'control-store', 'stores', store.id, 'products', docSnap.id))
-      })
-      await Promise.all(deletePromises)
-
-      // Agregar productos nuevos
-      let added = 0
-      for (const productData of data.products) {
-        try {
-          await addDoc(productsRef, productData)
-          added++
-        } catch (error) {
-          console.error('Error agregando producto:', error)
-        }
-      }
-
-      // Sincronizar categorías desde los productos
-      if (added > 0) {
-        await syncCategoriesFromProducts(store.id, data.products)
-        // Recargar categorías actualizadas
-        const updatedCategories = await getStoreCategories(store.id)
-        if (updatedCategories.length > 0) {
-          setCategoriesList(updatedCategories)
-        }
-      }
-
-      alert(`✅ Se sincronizaron ${added} productos desde Google Sheets`)
-      await loadProducts(store.id)
-    } catch (error) {
-      console.error('Error sincronizando desde Google Sheets:', error)
-      alert('Error al sincronizar desde Google Sheets. Verifica que la URL sea correcta y la hoja sea pública.')
-    } finally {
-      setIsSyncing(false)
-    }
-  }
 
   // Función para cargar información de la hoja
   const loadSheetInfo = async (storeId: string) => {
