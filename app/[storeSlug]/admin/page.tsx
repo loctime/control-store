@@ -17,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload, AlertTriangle, CheckCircle2, FileText, TrendingUp, TrendingDown, RefreshCw, Settings, Link } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload, AlertTriangle, CheckCircle2, FileText, TrendingUp, TrendingDown, RefreshCw, Settings, Link as LinkIcon } from "lucide-react"
 
 export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug: string }> }) {
   const resolvedParams = use(params)
@@ -904,7 +904,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                       {isCreatingBackup ? "Creando backup..." : "Crear backup"}
                     </Button>
                     <Button variant="outline" onClick={() => window.open(sheetInfo.editUrl, '_blank')}>
-                      <Link className="w-4 h-4 mr-2" />
+                      <LinkIcon className="w-4 h-4 mr-2" />
                       Abrir hoja
                     </Button>
                   </>
@@ -1188,7 +1188,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <Link className="w-6 h-6 text-primary" />
+              <LinkIcon className="w-6 h-6 text-primary" />
               Configurar Google Sheets
             </DialogTitle>
             <DialogDescription>
