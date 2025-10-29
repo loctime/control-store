@@ -130,7 +130,8 @@ export function ProductCard({ product, onProductClick }: ProductCardProps) {
                 )} />
               </div>
             </div>
-      </div>
-    </div>
+        </div>
+      </HoverAnimation>
+    </StaggeredAnimation>
   )
 }
