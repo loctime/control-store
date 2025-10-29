@@ -199,13 +199,20 @@ service cloud.firestore {
 
     // Usuario de control-store
     match /apps/control-store/users/{userId} {
+      // Crear documento - cualquier usuario autenticado puede crear su propio documento
       allow create: if isAuth() 
         && userId == uid()
         && request.resource.data.email != null
         && request.resource.data.displayName != null;
-      allow read, update, delete: if isAuth() && userId == uid();
-      // Permitir lectura a admins para ver roles
+      
+      // Leer - el propio usuario o admins
       allow read: if isAuth() && (userId == uid() || isControlStoreAdmin());
+      
+      // Actualizar - solo el propio usuario
+      allow update: if isAuth() && userId == uid();
+      
+      // Eliminar - solo el propio usuario
+      allow delete: if isAuth() && userId == uid();
     }
 
     // Tiendas
@@ -221,9 +228,12 @@ service cloud.firestore {
         && request.resource.data.name != null;
       
       // Actualizar tienda - solo el owner O admin/maxdev
+      // También permitir actualización durante transferencia (cambio de dueño)
       allow update: if isAuth() && (
         (resource.data.ownerId == uid() && request.resource.data.ownerId == resource.data.ownerId) ||
-        (isControlStoreAdmin() || isControlStoreMaxDev())
+        (isControlStoreAdmin() || isControlStoreMaxDev()) ||
+        // Permitir cambio de dueño durante transferencia
+        (request.resource.data.ownerId == uid() && request.resource.data.ownerEmail != null)
       );
       
       // Eliminar tienda - solo el owner O admin/maxdev
@@ -280,7 +290,8 @@ service cloud.firestore {
       // Crear transferencia - solo admins/maxdev de control-store
       allow create: if isAuth() && (isControlStoreAdmin() || isControlStoreMaxDev());
       
-      // Actualizar transferencia - para marcar como usada
+      // Actualizar transferencia - cualquier usuario autenticado puede marcar como usada cuando acepta
+      // Solo se permite marcar como usada si no estaba usada previamente
       allow update: if isAuth() && !resource.data.used;
       
       // Eliminar - solo admins/maxdev de control-store

@@ -201,8 +201,8 @@ export async function completeTransfer(token: string, newOwnerEmail: string, new
   // Actualizar dueño de la tienda
   await updateStoreOwner(storeId, newOwnerEmail, newOwnerId)
   
-  // Agregar tienda al usuario
-  await addStoreToUser(newOwnerId, storeId)
+  // Agregar tienda al usuario (crea el documento si no existe)
+  await addStoreToUser(newOwnerId, storeId, newOwnerEmail)
   
   // Marcar transferencia como usada
   const q = query(collection(db, 'apps', APP_ID, 'transfers'), where('token', '==', token))
@@ -350,11 +350,20 @@ export async function ensureUserDocument(userId: string, email: string, displayN
 }
 
 // Agregar tienda al array de stores del usuario
-export async function addStoreToUser(userId: string, storeId: string): Promise<void> {
+export async function addStoreToUser(userId: string, storeId: string, userEmail?: string): Promise<void> {
   const userRef = doc(db, 'apps', APP_ID, 'users', userId)
   const userSnap = await getDoc(userRef)
   
-  if (userSnap.exists()) {
+  if (!userSnap.exists()) {
+    // Crear el documento del usuario si no existe
+    await setDoc(userRef, {
+      email: userEmail || '',
+      displayName: userEmail ? userEmail.split('@')[0] : 'Usuario',
+      stores: [storeId],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  } else {
     await updateDoc(userRef, {
       stores: arrayUnion(storeId),
       updatedAt: serverTimestamp(),

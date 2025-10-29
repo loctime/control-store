@@ -1,6 +1,6 @@
-import { initializeApp, getApps } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
+import { getAuth, Auth } from 'firebase/auth'
+import { getFirestore, Firestore } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.NEXT_PUBLIC_REBASE_API_KEY,
@@ -12,9 +12,9 @@ const firebaseConfig = {
 }
 
 // Inicializar Firebase si tenemos las variables de entorno necesarias
-let app
-let auth
-let db
+let app: FirebaseApp | undefined
+let auth: Auth | undefined
+let db: Firestore | undefined
 
 // Verificar que tenemos las variables mínimas necesarias
 const hasConfig = firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId
