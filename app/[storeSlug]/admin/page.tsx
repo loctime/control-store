@@ -7,14 +7,15 @@ import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from
 import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection } from "@/lib/stores"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import type { Product, Store } from "@/lib/types"
+import type { Product, Store, ProductVariant } from "@/lib/types"
+import * as XLSX from 'xlsx'
 import { ProductForm } from "@/components/admin/product-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload } from "lucide-react"
 
 export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug: string }> }) {
   const resolvedParams = use(params)
@@ -26,6 +27,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isImporting, setIsImporting] = useState(false)
 
   useEffect(() => {
     // Verificar autenticación
@@ -156,6 +158,330 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }).format(price)
   }
 
+  // Función para exportar variedades como string
+  const serializeVariants = (groups?: Array<{title: string, variants: ProductVariant[]}>): string[] => {
+    if (!groups || groups.length === 0) return ['', '', '', '']
+    
+    const result = ['', '', '', '']
+    const titles = ['', '', '', '']
+    
+    groups.slice(0, 4).forEach((group, index) => {
+      titles[index] = group.title
+      result[index] = group.variants.map(v => `${v.name}: ${v.price}`).join(', ')
+    })
+    
+    return [...titles, ...result]
+  }
+
+  // Función para descargar plantilla Excel
+  const handleDownloadTemplate = () => {
+    const headers = [
+      'Nombre', 
+      'Descripcion', 
+      'Variedades 1', 
+      'Variedades 1 Titulo', 
+      'Variedades 2', 
+      'Variedades 2 Titulo',
+      'Variedades 3',
+      'Variedades 3 Titulo',
+      'Variedades 4',
+      'Variedades 4 Titulo',
+      'Precio', 
+      'Precio Anterior', 
+      'Ocultar', 
+      'Categoria', 
+      'SubCategoria', 
+      'Categoria Imagen de fondo', 
+      'Categoria Icono', 
+      'Controlar Stock',
+      'Tamaño Imagen',
+      'Imagen'
+    ]
+    
+    // Datos para la plantilla/exportación
+    let rows: any[] = []
+    
+    if (products.length > 0) {
+      // Exportar productos existentes
+      rows = products.map(p => {
+        const vars = serializeVariants(p.variantGroups)
+        return {
+          'Nombre': p.name,
+          'Descripcion': p.description || '',
+          'Variedades 1': vars[4],
+          'Variedades 1 Titulo': vars[0],
+          'Variedades 2': vars[5],
+          'Variedades 2 Titulo': vars[1],
+          'Variedades 3': vars[6],
+          'Variedades 3 Titulo': vars[2],
+          'Variedades 4': vars[7],
+          'Variedades 4 Titulo': vars[3],
+          'Precio': p.basePrice,
+          'Precio Anterior': p.previousPrice || '',
+          'Ocultar': p.hidden ? 'Sí' : 'No',
+          'Categoria': p.category || '',
+          'SubCategoria': p.subCategory || '',
+          'Categoria Imagen de fondo': '',
+          'Categoria Icono': '',
+          'Controlar Stock': p.stockControl ? 'Sí' : 'No',
+          'Tamaño Imagen': p.imageSize || 'medium',
+          'Imagen': p.image || ''
+        }
+      })
+    } else {
+      // Ejemplos para plantilla
+      rows = [
+        {
+          'Nombre': 'Pizza Muzzarella',
+          'Descripcion': 'Pizza con queso muzzarella y salsa de tomate',
+          'Variedades 1': 'Grande: 5000, Mediana: 4500, Chica: 3500',
+          'Variedades 1 Titulo': 'Tamaño',
+          'Variedades 2': '',
+          'Variedades 2 Titulo': '',
+          'Variedades 3': '',
+          'Variedades 3 Titulo': '',
+          'Variedades 4': '',
+          'Variedades 4 Titulo': '',
+          'Precio': 4500,
+          'Precio Anterior': '',
+          'Ocultar': 'No',
+          'Categoria': 'pizzas',
+          'SubCategoria': 'clasicas',
+          'Categoria Imagen de fondo': '',
+          'Categoria Icono': '',
+          'Controlar Stock': 'No',
+          'Tamaño Imagen': 'large',
+          'Imagen': ''
+        },
+        {
+          'Nombre': 'Pizza Napolitana',
+          'Descripcion': 'Pizza con queso, tomate y albahaca',
+          'Variedades 1': 'Grande: 5200, Mediana: 4800',
+          'Variedades 1 Titulo': 'Tamaño',
+          'Variedades 2': '',
+          'Variedades 2 Titulo': '',
+          'Variedades 3': '',
+          'Variedades 3 Titulo': '',
+          'Variedades 4': '',
+          'Variedades 4 Titulo': '',
+          'Precio': 4800,
+          'Precio Anterior': '',
+          'Ocultar': 'No',
+          'Categoria': 'pizzas',
+          'SubCategoria': 'clasicas',
+          'Categoria Imagen de fondo': '',
+          'Categoria Icono': '',
+          'Controlar Stock': 'No',
+          'Tamaño Imagen': 'large',
+          'Imagen': ''
+        }
+      ]
+    }
+
+    // Crear workbook de Excel
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers })
+    XLSX.utils.book_append_sheet(wb, ws, 'Productos')
+
+    // Descargar archivo
+    const filename = products.length > 0 
+      ? `productos-${resolvedParams.storeSlug}-${new Date().toISOString().split('T')[0]}.xlsx`
+      : `plantilla-productos.xlsx`
+    
+    XLSX.writeFile(wb, filename)
+  }
+
+  // Función para importar productos desde Excel
+  const handleImportCSV = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.xlsx,.xls'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      setIsImporting(true)
+      try {
+        // Leer archivo Excel
+        const arrayBuffer = await file.arrayBuffer()
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const data = XLSX.utils.sheet_to_json(worksheet) as any[]
+
+        // Solo procesar si tenemos la tienda
+        if (!store) return
+
+        // Función auxiliar para parsear variedades del formato "Nombre: Precio, Nombre2: Precio2"
+        const parseVariants = (variantsStr: string): ProductVariant[] => {
+          if (!variantsStr) return []
+          return variantsStr.split(',').map(v => {
+            const [name, priceStr] = v.split(':').map(s => s.trim())
+            return {
+              id: `var-${Date.now()}-${Math.random()}`,
+              name: name || '',
+              price: parseFloat(priceStr) || 0
+            }
+          }).filter(v => v.name)
+        }
+
+        const productsToImport = []
+        
+        // Procesar cada fila del Excel
+        for (const row of data) {
+          const product: any = { variantGroups: [], section: 'menu-principal', available: true, featured: false }
+
+          Object.keys(row).forEach((header) => {
+            const value = row[header]
+            if (value === undefined || value === null) return
+            
+            const strValue = String(value).trim()
+            switch (header.toLowerCase()) {
+              case 'nombre':
+                product.name = strValue
+                break
+              case 'descripcion':
+              case 'descripción':
+                product.description = strValue
+                break
+              case 'precio':
+                product.basePrice = parseFloat(strValue) || 0
+                break
+              case 'precio anterior':
+                if (strValue) product.previousPrice = parseFloat(strValue)
+                break
+              case 'categoria':
+                product.category = strValue || 'pizzas'
+                break
+              case 'subcategoria':
+                if (strValue) product.subCategory = strValue
+                break
+              case 'sección':
+              case 'seccion':
+                product.section = strValue || 'menu-principal'
+                break
+              case 'disponible':
+                product.available = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
+                break
+              case 'destacado':
+                product.featured = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
+                break
+              case 'ocultar':
+                product.hidden = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
+                break
+              case 'controlar stock':
+                product.stockControl = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
+                break
+              case 'tamaño imagen':
+              case 'tamano imagen':
+                if (strValue) product.imageSize = strValue.toLowerCase()
+                break
+              case 'imagen':
+                product.image = strValue
+                break
+              // Procesar variedades
+              case 'variedades 1 titulo':
+              case 'variedades 1 título':
+                if (strValue) product.var1Title = strValue
+                break
+              case 'variedades 1':
+                if (strValue) product.var1 = strValue
+                break
+              case 'variedades 2 titulo':
+              case 'variedades 2 título':
+                if (strValue) product.var2Title = strValue
+                break
+              case 'variedades 2':
+                if (strValue) product.var2 = strValue
+                break
+              case 'variedades 3 titulo':
+              case 'variedades 3 título':
+                if (strValue) product.var3Title = strValue
+                break
+              case 'variedades 3':
+                if (strValue) product.var3 = strValue
+                break
+              case 'variedades 4 titulo':
+              case 'variedades 4 título':
+                if (strValue) product.var4Title = strValue
+                break
+              case 'variedades 4':
+                if (strValue) product.var4 = strValue
+                break
+            }
+          })
+
+          // Crear grupos de variedades
+          const variantGroups: Array<{title: string, variants: ProductVariant[]}> = []
+          if (product.var1Title && product.var1) {
+            variantGroups.push({
+              title: product.var1Title,
+              variants: parseVariants(product.var1)
+            })
+          }
+          if (product.var2Title && product.var2) {
+            variantGroups.push({
+              title: product.var2Title,
+              variants: parseVariants(product.var2)
+            })
+          }
+          if (product.var3Title && product.var3) {
+            variantGroups.push({
+              title: product.var3Title,
+              variants: parseVariants(product.var3)
+            })
+          }
+          if (product.var4Title && product.var4) {
+            variantGroups.push({
+              title: product.var4Title,
+              variants: parseVariants(product.var4)
+            })
+          }
+          
+          if (variantGroups.length > 0) {
+            product.variantGroups = variantGroups
+          }
+
+          // Eliminar campos temporales
+          delete product.var1
+          delete product.var1Title
+          delete product.var2
+          delete product.var2Title
+          delete product.var3
+          delete product.var3Title
+          delete product.var4
+          delete product.var4Title
+
+          // Validar que tenga nombre
+          if (product.name) {
+            productsToImport.push(product)
+          }
+        }
+
+        // Agregar productos a Firestore
+        const productsRef = getProductsCollection(store.id)
+        let added = 0
+        for (const productData of productsToImport) {
+          try {
+            await addDoc(productsRef, productData)
+            added++
+          } catch (error) {
+            console.error('Error agregando producto:', error)
+          }
+        }
+
+        alert(`Se importaron ${added} productos correctamente`)
+        await loadProducts(store.id)
+      } catch (error) {
+        console.error('Error importando Excel:', error)
+        alert('Error al importar el archivo Excel')
+      } finally {
+        setIsImporting(false)
+      }
+    }
+    input.click()
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -278,10 +604,20 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                 <CardTitle>Productos</CardTitle>
                 <CardDescription>Gestiona el catálogo de productos de tu tienda</CardDescription>
               </div>
-              <Button onClick={handleCreateProduct}>
-                <Plus className="w-4 h-4 mr-2" />
-                Nuevo producto
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleDownloadTemplate}>
+                  <Download className="w-4 h-4 mr-2" />
+                  {products.length > 0 ? 'Exportar Excel' : 'Descargar Plantilla'}
+                </Button>
+                <Button variant="outline" onClick={handleImportCSV} disabled={isImporting}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {isImporting ? "Importando..." : "Importar Excel"}
+                </Button>
+                <Button onClick={handleCreateProduct}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nuevo producto
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

@@ -18,19 +18,30 @@ export interface Product {
   name: string
   description: string
   basePrice: number
+  previousPrice?: number
   image: string
   category: string
+  subCategory?: string
   section: string
   variants?: ProductVariant[]
+  variantGroups?: Array<{
+    title: string
+    variants: ProductVariant[]
+  }>
   complements?: ProductComplement[]
   available: boolean
-  featured?: boolean
+  featured: boolean
+  stockControl?: boolean
+  stock?: number
+  imageSize?: 'small' | 'medium' | 'large'
+  hidden?: boolean
 }
 
 export interface Category {
   id: string
   name: string
   icon?: string
+  backgroundImage?: string
   order: number
 }
 
