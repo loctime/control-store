@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
-import { Store, LogOut, Save, Palette, Image, Settings } from "lucide-react"
+import { Store, LogOut, Save, Palette, Image, Settings, MessageCircle, Clock, MapPin } from "lucide-react"
 import { useStore } from "@/lib/store"
 import type { Store as StoreType, StoreConfig } from "@/lib/types"
 
@@ -52,6 +53,38 @@ export default function CustomizationPage() {
       productImageSize: "medium",
       cardStyle: "detailed",
       layout: "grid"
+    },
+    contact: {
+      welcomeMessage: "¡Bienvenidos a nuestra tienda! Realizamos pedidos online con delivery y retiro en local.",
+      email: "",
+      website: "",
+      socialMedia: {
+        whatsapp: "",
+        instagram: "",
+        facebook: "",
+        twitter: ""
+      }
+    },
+    location: {
+      latitude: 0,
+      longitude: 0,
+      address: "",
+      showMap: false
+    },
+    schedule: {
+      monday: { open: "09:00", close: "22:00", closed: false },
+      tuesday: { open: "09:00", close: "22:00", closed: false },
+      wednesday: { open: "09:00", close: "22:00", closed: false },
+      thursday: { open: "09:00", close: "22:00", closed: false },
+      friday: { open: "09:00", close: "22:00", closed: false },
+      saturday: { open: "09:00", close: "22:00", closed: false },
+      sunday: { open: "09:00", close: "22:00", closed: false }
+    },
+    animations: {
+      enableHover: true,
+      enableTransitions: true,
+      enableMicroInteractions: true,
+      animationSpeed: "normal"
     }
   })
   const [isLoading, setIsLoading] = useState(true)
@@ -185,7 +218,7 @@ export default function CustomizationPage() {
 
       <main className="container mx-auto px-4 py-6 space-y-8">
         <Tabs defaultValue="branding" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="branding" className="flex items-center gap-2">
               <Palette className="w-4 h-4" />
               Marca
@@ -197,6 +230,14 @@ export default function CustomizationPage() {
             <TabsTrigger value="backgrounds" className="flex items-center gap-2">
               <Image className="w-4 h-4" />
               Fondos
+            </TabsTrigger>
+            <TabsTrigger value="contact" className="flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" />
+              Contacto
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Horarios
             </TabsTrigger>
             <TabsTrigger value="ui" className="flex items-center gap-2">
               <Settings className="w-4 h-4" />
@@ -571,6 +612,219 @@ export default function CustomizationPage() {
                     <Label htmlFor="showDescriptions">Mostrar descripciones</Label>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Pestaña de Contacto */}
+          <TabsContent value="contact">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Información de Contacto</CardTitle>
+                  <CardDescription>Configura los canales de comunicación con tus clientes</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label>Mensaje de bienvenida</Label>
+                    <Textarea 
+                      value={storeConfig.contact?.welcomeMessage || ""}
+                      onChange={(e) => updateConfig('contact', { ...storeConfig.contact, welcomeMessage: e.target.value })}
+                      placeholder="Escribe un mensaje de bienvenida personalizado..."
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Email</Label>
+                      <Input 
+                        value={storeConfig.contact?.email || ""}
+                        onChange={(e) => updateConfig('contact', { ...storeConfig.contact, email: e.target.value })}
+                        placeholder="contacto@tienda.com"
+                        type="email"
+                      />
+                    </div>
+                    <div>
+                      <Label>Sitio web</Label>
+                      <Input 
+                        value={storeConfig.contact?.website || ""}
+                        onChange={(e) => updateConfig('contact', { ...storeConfig.contact, website: e.target.value })}
+                        placeholder="https://www.tienda.com"
+                        type="url"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-base font-medium">Redes Sociales</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <Label>WhatsApp</Label>
+                        <Input 
+                          value={storeConfig.contact?.socialMedia?.whatsapp || ""}
+                          onChange={(e) => updateConfig('contact', { 
+                            ...storeConfig.contact, 
+                            socialMedia: { ...storeConfig.contact?.socialMedia, whatsapp: e.target.value }
+                          })}
+                          placeholder="5491234567890"
+                        />
+                      </div>
+                      <div>
+                        <Label>Instagram</Label>
+                        <Input 
+                          value={storeConfig.contact?.socialMedia?.instagram || ""}
+                          onChange={(e) => updateConfig('contact', { 
+                            ...storeConfig.contact, 
+                            socialMedia: { ...storeConfig.contact?.socialMedia, instagram: e.target.value }
+                          })}
+                          placeholder="@tu_tienda"
+                        />
+                      </div>
+                      <div>
+                        <Label>Facebook</Label>
+                        <Input 
+                          value={storeConfig.contact?.socialMedia?.facebook || ""}
+                          onChange={(e) => updateConfig('contact', { 
+                            ...storeConfig.contact, 
+                            socialMedia: { ...storeConfig.contact?.socialMedia, facebook: e.target.value }
+                          })}
+                          placeholder="TuTienda"
+                        />
+                      </div>
+                      <div>
+                        <Label>Twitter</Label>
+                        <Input 
+                          value={storeConfig.contact?.socialMedia?.twitter || ""}
+                          onChange={(e) => updateConfig('contact', { 
+                            ...storeConfig.contact, 
+                            socialMedia: { ...storeConfig.contact?.socialMedia, twitter: e.target.value }
+                          })}
+                          placeholder="@tu_tienda"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ubicación</CardTitle>
+                  <CardDescription>Configura la ubicación de tu tienda</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label>Dirección</Label>
+                    <Input 
+                      value={storeConfig.location?.address || ""}
+                      onChange={(e) => updateConfig('location', { ...storeConfig.location, address: e.target.value })}
+                      placeholder="Calle 123, Ciudad, País"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Latitud</Label>
+                      <Input 
+                        value={storeConfig.location?.latitude || ""}
+                        onChange={(e) => updateConfig('location', { ...storeConfig.location, latitude: parseFloat(e.target.value) || 0 })}
+                        placeholder="-34.6037"
+                        type="number"
+                        step="any"
+                      />
+                    </div>
+                    <div>
+                      <Label>Longitud</Label>
+                      <Input 
+                        value={storeConfig.location?.longitude || ""}
+                        onChange={(e) => updateConfig('location', { ...storeConfig.location, longitude: parseFloat(e.target.value) || 0 })}
+                        placeholder="-58.3816"
+                        type="number"
+                        step="any"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="showMap"
+                      checked={storeConfig.location?.showMap || false}
+                      onCheckedChange={(checked) => updateConfig('location', { ...storeConfig.location, showMap: checked })}
+                    />
+                    <Label htmlFor="showMap">Mostrar mapa en la tienda</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Pestaña de Horarios */}
+          <TabsContent value="schedule">
+            <Card>
+              <CardHeader>
+                <CardTitle>Horarios de Atención</CardTitle>
+                <CardDescription>Configura los horarios de apertura y cierre por día</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.entries(storeConfig.schedule || {}).map(([day, schedule]) => (
+                  <div key={day} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-20">
+                        <Label className="capitalize">
+                          {day === 'monday' && 'Lunes'}
+                          {day === 'tuesday' && 'Martes'}
+                          {day === 'wednesday' && 'Miércoles'}
+                          {day === 'thursday' && 'Jueves'}
+                          {day === 'friday' && 'Viernes'}
+                          {day === 'saturday' && 'Sábado'}
+                          {day === 'sunday' && 'Domingo'}
+                        </Label>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Switch 
+                          checked={!schedule.closed}
+                          onCheckedChange={(checked) => updateConfig('schedule', {
+                            ...storeConfig.schedule,
+                            [day]: { ...schedule, closed: !checked }
+                          })}
+                        />
+                        <Label>Abierto</Label>
+                      </div>
+                    </div>
+
+                    {!schedule.closed && (
+                      <div className="flex items-center space-x-2">
+                        <div>
+                          <Label className="text-xs">Apertura</Label>
+                          <Input 
+                            type="time"
+                            value={schedule.open}
+                            onChange={(e) => updateConfig('schedule', {
+                              ...storeConfig.schedule,
+                              [day]: { ...schedule, open: e.target.value }
+                            })}
+                            className="w-24"
+                          />
+                        </div>
+                        <span className="text-muted-foreground">-</span>
+                        <div>
+                          <Label className="text-xs">Cierre</Label>
+                          <Input 
+                            type="time"
+                            value={schedule.close}
+                            onChange={(e) => updateConfig('schedule', {
+                              ...storeConfig.schedule,
+                              [day]: { ...schedule, close: e.target.value }
+                            })}
+                            className="w-24"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>

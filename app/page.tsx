@@ -7,6 +7,9 @@ import { ProductCard } from "@/components/product-card"
 import { ProductDetailModal } from "@/components/product-detail-modal"
 import { CategoryFilter } from "@/components/category-filter"
 import { StoreThemeProvider } from "@/components/store-theme-provider"
+import { WelcomeMessage } from "@/components/welcome-message"
+import { StoreSchedule } from "@/components/store-schedule"
+import { StoreLocation } from "@/components/store-location"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, CartItem } from "@/lib/types"
@@ -97,13 +100,18 @@ export default function HomePage() {
         </header>
 
       <main className="container mx-auto px-4 py-6 space-y-8">
+        {/* Mensaje de bienvenida */}
+        <WelcomeMessage storeConfig={storeConfig} />
+
         {/* Destacados */}
         {featuredProducts.length > 0 && (
           <section>
             <h2 className="text-2xl font-bold mb-4">Destacados</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-              {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} onProductClick={handleProductClick} />
+              {featuredProducts.map((product, index) => (
+                <div key={product.id} style={{ animationDelay: `${index * 100}ms` }}>
+                  <ProductCard product={product} onProductClick={handleProductClick} />
+                </div>
               ))}
             </div>
           </section>
@@ -122,8 +130,10 @@ export default function HomePage() {
         {/* Lista de productos */}
         <section>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} onProductClick={handleProductClick} />
+            {filteredProducts.map((product, index) => (
+              <div key={product.id} style={{ animationDelay: `${index * 50}ms` }}>
+                <ProductCard product={product} onProductClick={handleProductClick} />
+              </div>
             ))}
           </div>
           {filteredProducts.length === 0 && (
@@ -132,6 +142,12 @@ export default function HomePage() {
             </div>
           )}
         </section>
+
+        {/* Información de la tienda */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <StoreSchedule storeConfig={storeConfig} />
+          <StoreLocation storeConfig={storeConfig} />
+        </div>
       </main>
 
       {/* Modal de detalle de producto */}

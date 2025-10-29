@@ -45,6 +45,38 @@ export const useStore = create<StoreState>()(
         deliveryFee: 500,
         minOrderAmount: 2000,
         openingHours: "Lun-Dom 11:00 - 23:00",
+        contact: {
+          welcomeMessage: "¡Bienvenidos a nuestra tienda! Realizamos pedidos online con delivery y retiro en local.",
+          email: "",
+          website: "",
+          socialMedia: {
+            whatsapp: "",
+            instagram: "",
+            facebook: "",
+            twitter: ""
+          }
+        },
+        location: {
+          latitude: 0,
+          longitude: 0,
+          address: "",
+          showMap: false
+        },
+        schedule: {
+          monday: { open: "09:00", close: "22:00", closed: false },
+          tuesday: { open: "09:00", close: "22:00", closed: false },
+          wednesday: { open: "09:00", close: "22:00", closed: false },
+          thursday: { open: "09:00", close: "22:00", closed: false },
+          friday: { open: "09:00", close: "22:00", closed: false },
+          saturday: { open: "09:00", close: "22:00", closed: false },
+          sunday: { open: "09:00", close: "22:00", closed: false }
+        },
+        animations: {
+          enableHover: true,
+          enableTransitions: true,
+          enableMicroInteractions: true,
+          animationSpeed: "normal"
+        }
       },
       cart: [],
 

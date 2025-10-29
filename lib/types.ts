@@ -35,6 +35,18 @@ export interface Product {
   stock?: number
   imageSize?: 'small' | 'medium' | 'large'
   hidden?: boolean
+  
+  // Nuevos campos para estado mejorado
+  status?: 'available' | 'out_of_stock' | 'coming_soon' | 'limited_stock'
+  discount?: {
+    percentage?: number
+    amount?: number
+    validUntil?: string
+  }
+  tags?: string[]
+  preparationTime?: number // en minutos
+  calories?: number
+  allergens?: string[]
 }
 
 export interface Category {
@@ -126,6 +138,44 @@ export interface StoreConfig {
     productImageSize?: 'small' | 'medium' | 'large'
     cardStyle?: 'minimal' | 'detailed' | 'compact'
     layout?: 'grid' | 'list'
+  }
+  
+  // Información de contacto extendida
+  contact?: {
+    welcomeMessage?: string
+    email?: string
+    website?: string
+    socialMedia?: {
+      whatsapp?: string
+      instagram?: string
+      facebook?: string
+      twitter?: string
+    }
+  }
+  
+  // Ubicación y mapa
+  location?: {
+    latitude?: number
+    longitude?: number
+    address?: string
+    showMap?: boolean
+  }
+  
+  // Horarios detallados
+  schedule?: {
+    [key: string]: {
+      open: string
+      close: string
+      closed?: boolean
+    }
+  }
+  
+  // Configuración de animaciones
+  animations?: {
+    enableHover?: boolean
+    enableTransitions?: boolean
+    enableMicroInteractions?: boolean
+    animationSpeed?: 'slow' | 'normal' | 'fast'
   }
 }
 
