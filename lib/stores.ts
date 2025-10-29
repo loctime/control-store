@@ -164,6 +164,10 @@ function generateTransferToken(): string {
 }
 
 export async function getTransferByToken(token: string): Promise<any> {
+  if (!token || typeof token !== 'string') {
+    throw new Error("Token de transferencia inválido")
+  }
+  
   const q = query(collection(db, 'apps', APP_ID, 'transfers'), where('token', '==', token))
   const querySnapshot = await getDocs(q)
   

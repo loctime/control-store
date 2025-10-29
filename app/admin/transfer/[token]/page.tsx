@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,14 +29,28 @@ export default function TransferPage({ params }: TransferPageProps) {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
 
+  // Handle params as Promise or object
+  const resolvedParams = use(Promise.resolve(params))
+
   useEffect(() => {
-    loadTransferData()
-  }, [params.token])
+    if (resolvedParams?.token) {
+      loadTransferData()
+    } else {
+      setError("Token de transferencia no encontrado en la URL")
+      setIsLoading(false)
+    }
+  }, [resolvedParams?.token])
 
   const loadTransferData = async () => {
     try {
       setIsLoading(true)
-      const transferData = await getTransferByToken(params.token)
+      
+      if (!resolvedParams?.token) {
+        setError("Token de transferencia no válido")
+        return
+      }
+      
+      const transferData = await getTransferByToken(resolvedParams.token)
       
       if (!transferData) {
         setError("Link de transferencia no válido o expirado")
@@ -74,7 +88,10 @@ export default function TransferPage({ params }: TransferPageProps) {
       }
 
       // Completar la transferencia
-      await completeTransfer(params.token, newOwnerEmail, newOwnerId)
+      if (!resolvedParams?.token) {
+        throw new Error("Token de transferencia no válido")
+      }
+      await completeTransfer(resolvedParams.token, newOwnerEmail, newOwnerId)
 
       toast({
         title: "Transferencia exitosa",
