@@ -38,13 +38,34 @@ export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    // Verificar autenticación con Firebase Auth
+    // Verificar autenticación
+    const checkAuth = () => {
+      if (isAuthenticated()) {
+        const currentUser = getCurrentUser()
+        console.log("Usuario autenticado:", currentUser)
+        if (currentUser) {
+          setUser(currentUser)
+          checkUserRole(currentUser)
+        } else {
+          router.push("/admin")
+        }
+      } else {
+        console.log("No hay usuario autenticado, redirigiendo...")
+        router.push("/admin")
+      }
+    }
+
+    // Verificar inmediatamente
+    checkAuth()
+
+    // También escuchar cambios de Firebase Auth si está disponible
     const unsubscribe = onAuthChange((user) => {
+      console.log("Auth state changed:", user)
       if (user) {
         setUser(user)
-        // Verificar que el usuario tenga rol maxdev
-        checkUserRole(user.uid)
+        checkUserRole(user)
       } else {
+        console.log("No hay usuario autenticado, redirigiendo...")
         router.push("/admin")
       }
     })
@@ -52,13 +73,13 @@ export default function AdminDashboard() {
     return () => unsubscribe()
   }, [router])
 
-  const checkUserRole = async (uid: string) => {
+  const checkUserRole = async (user: any) => {
     try {
-      // Aquí podrías verificar el rol del usuario en Firestore si es necesario
-      // Por ahora asumimos que si está autenticado con maxdev@gmail.com, tiene permisos
+      // Verificar que el email sea maxdev@gmail.com
       if (user?.email === "maxdev@gmail.com") {
         loadData()
       } else {
+        console.log("Usuario no autorizado:", user?.email)
         router.push("/admin")
       }
     } catch (error) {

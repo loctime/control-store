@@ -24,16 +24,20 @@ export function LoginForm() {
     setIsLoading(true)
 
     try {
+      console.log("Iniciando login...")
       const success = await login(email, password)
+      console.log("Resultado del login:", success)
+      
       if (success) {
+        console.log("Login exitoso, redirigiendo...")
         router.push("/admin/dashboard")
       } else {
         setError("Email o contraseña incorrectos")
         setPassword("")
       }
     } catch (error) {
-      setError("Error de conexión. Intenta nuevamente.")
       console.error("Error de login:", error)
+      setError("Error de conexión. Intenta nuevamente.")
     } finally {
       setIsLoading(false)
     }
