@@ -2,22 +2,24 @@
 
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { auth } from "@/lib/firebase"
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth"
 import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection, normalizeCategoryName, syncCategoriesFromProducts, getStoreCategories, updateStoreConfig } from "@/lib/stores"
-import { createGoogleSheet, getProductsFromSheets, syncProductsFromSheets, createSheetBackup, getSheetInfo } from "@/lib/controlfile-api"
+import { createGoogleSheet, syncProductsFromSheets, createSheetBackup } from "@/lib/controlfile-api"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { Product, Store, ProductVariant } from "@/lib/types"
 import * as XLSX from 'xlsx'
 import { ProductForm } from "@/components/admin/product-form"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload, AlertTriangle, CheckCircle2, FileText, TrendingUp, TrendingDown, RefreshCw, Settings, Link as LinkIcon } from "lucide-react"
+import { StoreAdminHeader } from "@/components/admin/store-admin-header"
+import { StoreStatsCards } from "@/components/admin/store-stats-cards"
+import { ProductsTable } from "@/components/admin/products-table"
+import { ProductsActions } from "@/components/admin/products-actions"
+import { ImportConfirmationDialog } from "@/components/admin/import-confirmation-dialog"
+import { GoogleSheetsConfigDialog } from "@/components/admin/google-sheets-config-dialog"
+import { AdminAuthGate } from "@/components/admin/admin-auth-gate"
 
 export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug: string }> }) {
   const resolvedParams = use(params)
@@ -32,7 +34,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   const [isImporting, setIsImporting] = useState(false)
   const [categoriesList, setCategoriesList] = useState<any[]>([])
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false)
-  const [importPreview, setImportPreview] = useState<any>(null)
   const [pendingImportData, setPendingImportData] = useState<any>(null)
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState("")
   const [isConfigOpen, setIsConfigOpen] = useState(false)
@@ -42,7 +43,8 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   const [isCreatingBackup, setIsCreatingBackup] = useState(false)
 
   useEffect(() => {
-    // Verificar autenticación
+    if (!auth) return
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser)
@@ -68,18 +70,15 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
 
       setStore(storeData)
 
-      // Verificar si el usuario es dueño de la tienda
       const isOwner = await isUserOwnerOfStore(userId, resolvedParams.storeSlug)
       setIsAuthenticated(isOwner)
 
       if (isOwner) {
         await loadProducts(storeData.id)
-        // Cargar categorías
         const categories = await getStoreCategories(storeData.id)
         if (categories.length > 0) {
           setCategoriesList(categories)
         } else {
-          // Fallback a categorías por defecto
           setCategoriesList([
             { id: "pizzas", name: "Pizzas", icon: "pizza", order: 1 },
             { id: "empanadas", name: "Empanadas", icon: "utensils", order: 2 },
@@ -87,12 +86,11 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
             { id: "postres", name: "Postres", icon: "cake", order: 4 }
           ])
         }
-        // Cargar URL de Google Sheets si existe
+        
         if (storeData.config.googleSheetsUrl) {
           setGoogleSheetsUrl(storeData.config.googleSheetsUrl)
         }
         
-        // Cargar información de la hoja configurada
         await loadSheetInfo(storeData.id)
       }
 
@@ -117,7 +115,23 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
+  const loadSheetInfo = async (storeId: string) => {
+    try {
+      const { getSheetInfo } = await import('@/lib/controlfile-api')
+      const response = await getSheetInfo(storeId)
+      if (response.success && response.data) {
+        setSheetInfo(response.data)
+      } else {
+        setSheetInfo(null)
+      }
+    } catch (error) {
+      console.error('Error cargando información de la hoja:', error)
+      setSheetInfo(null)
+    }
+  }
+
   const handleLogin = async () => {
+    if (!auth) return
     try {
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
@@ -127,6 +141,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   }
 
   const handleLogout = async () => {
+    if (!auth) return
     await signOut(auth)
     router.push(`/${resolvedParams.storeSlug}`)
   }
@@ -146,11 +161,11 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     if (!store) return
 
     try {
+      if (!db) return
       const productRef = doc(db, 'apps', 'control-store', 'stores', store.id, 'products', productId)
       await deleteDoc(productRef)
       const updatedProducts = products.filter(p => p.id !== productId)
       setProducts(updatedProducts)
-      // Sincronizar categorías luego de eliminar un producto
       await syncCategoriesFromProducts(store.id, updatedProducts)
       const updatedCategories = await getStoreCategories(store.id)
       if (updatedCategories.length > 0) {
@@ -168,33 +183,29 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     try {
       const productsRef = getProductsCollection(store.id)
       
-      // Normalizar categoría antes de guardar
       const normalizedData = {
         ...productData,
         category: productData.category ? normalizeCategoryName(productData.category) : productData.category
       }
       
       if (normalizedData.id && editingProduct) {
-        // Actualizar producto existente
+        if (!db) return
         const productRef = doc(db, 'apps', 'control-store', 'stores', store.id, 'products', normalizedData.id)
         const { id, ...dataToUpdate } = normalizedData
         await updateDoc(productRef, dataToUpdate as any)
         setProducts(products.map(p => p.id === normalizedData.id ? { ...normalizedData } as Product : p))
       } else {
-        // Crear nuevo producto
         const { id, ...dataWithoutId } = normalizedData
         const docRef = await addDoc(productsRef, dataWithoutId)
         const newProduct = { ...dataWithoutId, id: docRef.id } as Product
         setProducts([...products, newProduct])
       }
       
-      // Sincronizar categorías después de guardar
       const allProducts = editingProduct 
         ? products.map(p => p.id === normalizedData.id ? { ...normalizedData } as Product : p)
         : [...products, { ...normalizedData, id: (normalizedData.id || '') } as Product]
       await syncCategoriesFromProducts(store.id, allProducts)
       
-      // Recargar categorías actualizadas
       const updatedCategories = await getStoreCategories(store.id)
       if (updatedCategories.length > 0) {
         setCategoriesList(updatedCategories)
@@ -216,7 +227,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }).format(price)
   }
 
-  // Función para exportar variedades como string
   const serializeVariants = (groups?: Array<{title: string, variants: ProductVariant[]}>): string[] => {
     if (!groups || groups.length === 0) return ['', '', '', '']
     
@@ -231,36 +241,18 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     return [...titles, ...result]
   }
 
-  // Función para descargar plantilla Excel
   const handleDownloadTemplate = () => {
     const headers = [
-      'Nombre', 
-      'Descripcion', 
-      'Variedades 1', 
-      'Variedades 1 Titulo', 
-      'Variedades 2', 
-      'Variedades 2 Titulo',
-      'Variedades 3',
-      'Variedades 3 Titulo',
-      'Variedades 4',
-      'Variedades 4 Titulo',
-      'Precio', 
-      'Precio Anterior', 
-      'Ocultar', 
-      'Categoria', 
-      'SubCategoria', 
-      'Categoria Imagen de fondo', 
-      'Categoria Icono', 
-      'Controlar Stock',
-      'Tamaño Imagen',
-      'Imagen (URL)' // Solo se aceptan enlaces a imágenes, no imágenes embebidas
+      'Nombre', 'Descripcion', 'Variedades 1', 'Variedades 1 Titulo', 
+      'Variedades 2', 'Variedades 2 Titulo', 'Variedades 3', 'Variedades 3 Titulo',
+      'Variedades 4', 'Variedades 4 Titulo', 'Precio', 'Precio Anterior', 
+      'Ocultar', 'Categoria', 'SubCategoria', 'Categoria Imagen de fondo', 
+      'Categoria Icono', 'Controlar Stock', 'Tamaño Imagen', 'Imagen (URL)'
     ]
     
-    // Datos para la plantilla/exportación
     let rows: any[] = []
     
     if (products.length > 0) {
-      // Exportar productos existentes
       rows = products.map(p => {
         const vars = serializeVariants(p.variantGroups)
         return {
@@ -286,62 +278,12 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           'Imagen (URL)': p.image || ''
         }
       })
-    } else {
-      // Ejemplos para plantilla
-      rows = [
-        {
-          'Nombre': 'Pizza Muzzarella',
-          'Descripcion': 'Pizza con queso muzzarella y salsa de tomate',
-          'Variedades 1': 'Grande: 5000, Mediana: 4500, Chica: 3500',
-          'Variedades 1 Titulo': 'Tamaño',
-          'Variedades 2': '',
-          'Variedades 2 Titulo': '',
-          'Variedades 3': '',
-          'Variedades 3 Titulo': '',
-          'Variedades 4': '',
-          'Variedades 4 Titulo': '',
-          'Precio': 4500,
-          'Precio Anterior': '',
-          'Ocultar': 'No',
-          'Categoria': 'pizzas',
-          'SubCategoria': 'clasicas',
-          'Categoria Imagen de fondo': '',
-          'Categoria Icono': '',
-          'Controlar Stock': 'No',
-          'Tamaño Imagen': 'large',
-          'Imagen (URL)': ''
-        },
-        {
-          'Nombre': 'Pizza Napolitana',
-          'Descripcion': 'Pizza con queso, tomate y albahaca',
-          'Variedades 1': 'Grande: 5200, Mediana: 4800',
-          'Variedades 1 Titulo': 'Tamaño',
-          'Variedades 2': '',
-          'Variedades 2 Titulo': '',
-          'Variedades 3': '',
-          'Variedades 3 Titulo': '',
-          'Variedades 4': '',
-          'Variedades 4 Titulo': '',
-          'Precio': 4800,
-          'Precio Anterior': '',
-          'Ocultar': 'No',
-          'Categoria': 'pizzas',
-          'SubCategoria': 'clasicas',
-          'Categoria Imagen de fondo': '',
-          'Categoria Icono': '',
-          'Controlar Stock': 'No',
-          'Tamaño Imagen': 'large',
-          'Imagen (URL)': ''
-        }
-      ]
     }
 
-    // Crear workbook de Excel
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(rows, { header: headers })
     XLSX.utils.book_append_sheet(wb, ws, 'Productos')
 
-    // Descargar archivo
     const filename = products.length > 0 
       ? `productos-${resolvedParams.storeSlug}-${new Date().toISOString().split('T')[0]}.xlsx`
       : `plantilla-productos.xlsx`
@@ -349,7 +291,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     XLSX.writeFile(wb, filename)
   }
 
-  // Función para importar productos desde Excel
   const handleImportCSV = () => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -360,17 +301,14 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
 
       setIsImporting(true)
       try {
-        // Leer archivo Excel
         const arrayBuffer = await file.arrayBuffer()
         const workbook = XLSX.read(arrayBuffer, { type: 'array' })
         const sheetName = workbook.SheetNames[0]
         const worksheet = workbook.Sheets[sheetName]
         const data = XLSX.utils.sheet_to_json(worksheet) as any[]
 
-        // Solo procesar si tenemos la tienda
         if (!store) return
 
-        // Función auxiliar para parsear variedades del formato "Nombre: Precio, Nombre2: Precio2"
         const parseVariants = (variantsStr: string): ProductVariant[] => {
           if (!variantsStr) return []
           return variantsStr.split(',').map(v => {
@@ -385,7 +323,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
 
         const productsToImport = []
         
-        // Procesar cada fila del Excel
         for (const row of data) {
           const product: any = { variantGroups: [], section: 'menu-principal', available: true, featured: false }
 
@@ -414,16 +351,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
               case 'subcategoria':
                 if (strValue) product.subCategory = strValue
                 break
-              case 'sección':
-              case 'seccion':
-                product.section = strValue || 'menu-principal'
-                break
-              case 'disponible':
-                product.available = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
-                break
-              case 'destacado':
-                product.featured = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
-                break
               case 'ocultar':
                 product.hidden = strValue.toLowerCase() === 'sí' || strValue.toLowerCase() === 'si' || strValue.toLowerCase() === 'yes' || strValue === '1'
                 break
@@ -439,7 +366,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
               case 'imagen (URL)':
                 product.image = strValue
                 break
-              // Procesar variedades
               case 'variedades 1 titulo':
               case 'variedades 1 título':
                 if (strValue) product.var1Title = strValue
@@ -471,7 +397,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
             }
           })
 
-          // Crear grupos de variedades
           const variantGroups: Array<{title: string, variants: ProductVariant[]}> = []
           if (product.var1Title && product.var1) {
             variantGroups.push({
@@ -502,7 +427,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
             product.variantGroups = variantGroups
           }
 
-          // Eliminar campos temporales
           delete product.var1
           delete product.var1Title
           delete product.var2
@@ -512,13 +436,11 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           delete product.var4
           delete product.var4Title
 
-          // Validar que tenga nombre
           if (product.name) {
             productsToImport.push(product)
           }
         }
 
-        // Analizar cambios
         const newProductNames = new Set(productsToImport.map(p => p.name.toLowerCase()))
         const currentProductNames = new Set(products.map(p => p.name.toLowerCase()))
         
@@ -527,7 +449,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
         const toEdit = productsToImport.filter(p => {
           const current = products.find(cp => cp.name.toLowerCase() === p.name.toLowerCase())
           if (!current) return false
-          // Comparar propiedades clave
           return current.basePrice !== p.basePrice || 
                  current.description !== p.description ||
                  current.category !== p.category ||
@@ -535,7 +456,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                  current.featured !== p.featured
         })
 
-        // Guardar datos para confirmación
         setPendingImportData({
           productsToImport,
           totalCurrent: products.length,
@@ -543,7 +463,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           toDelete: toDelete.length,
           toAdd: toAdd.length,
           toEdit: toEdit.length,
-          deleteList: toDelete.slice(0, 5).map(p => p.name), // Primeros 5
+          deleteList: toDelete.slice(0, 5).map(p => p.name),
           addList: toAdd.slice(0, 5).map(p => p.name)
         })
         setIsImportConfirmOpen(true)
@@ -565,7 +485,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     setIsImporting(true)
     
     try {
-      // Eliminar todos los productos actuales
+      if (!db) return
       const productsRef = getProductsCollection(store.id)
       const currentSnapshot = await getDocs(productsRef)
       const deletePromises = currentSnapshot.docs.map(async (docSnap) => {
@@ -573,7 +493,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
       })
       await Promise.all(deletePromises)
 
-      // Agregar productos nuevos
       let added = 0
       for (const productData of pendingImportData.productsToImport) {
         try {
@@ -584,10 +503,8 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
         }
       }
 
-      // Sincronizar categorías desde los productos
       if (added > 0) {
         await syncCategoriesFromProducts(store.id, pendingImportData.productsToImport)
-        // Recargar categorías actualizadas
         const updatedCategories = await getStoreCategories(store.id)
         if (updatedCategories.length > 0) {
           setCategoriesList(updatedCategories)
@@ -605,29 +522,11 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
-
-  // Función para cargar información de la hoja
-  const loadSheetInfo = async (storeId: string) => {
-    try {
-      const response = await getSheetInfo(storeId)
-      if (response.success && response.data) {
-        setSheetInfo(response.data)
-      } else {
-        setSheetInfo(null)
-      }
-    } catch (error) {
-      console.error('Error cargando información de la hoja:', error)
-      setSheetInfo(null)
-    }
-  }
-
-  // Función para crear hoja en Google Drive del cliente
   const handleCreateGoogleSheet = async () => {
     if (!store) return
     
     setIsCreatingSheet(true)
     try {
-      // Abrir popup de OAuth de Google
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&` +
@@ -639,7 +538,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
       
       const popup = window.open(authUrl, 'google-auth', 'width=500,height=600')
       
-      // Escuchar el mensaje del popup
       const messageListener = (event: MessageEvent) => {
         if (event.origin !== window.location.origin) return
         
@@ -656,7 +554,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
       
       window.addEventListener('message', messageListener)
       
-      // Limpiar listener si se cierra el popup
       const checkClosed = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkClosed)
@@ -672,7 +569,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
-  // Función para crear la hoja con el código de autorización
   const createSheetWithAuthCode = async (authCode: string) => {
     if (!store) return
     
@@ -682,7 +578,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
       if (response.success && response.data) {
         setSheetInfo(response.data)
         alert(`✅ Hoja creada correctamente!\n\nPuedes editarla aquí: ${response.data.editUrl}`)
-        await loadProducts(store.id) // Recargar productos
+        await loadProducts(store.id)
       } else {
         alert(`Error: ${response.error || 'No se pudo crear la hoja'}`)
       }
@@ -694,17 +590,14 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
-  // Función para sincronizar desde Google Sheets (flujo híbrido)
   const handleSyncFromGoogleSheets = async () => {
     if (!store) return
     
     setIsSyncing(true)
     try {
-      // 1. Sincronizar desde Google Sheets → Controlfile actualiza Firestore
       const response = await syncProductsFromSheets(store.id)
       
       if (response.success) {
-        // 2. Recargar productos desde Firestore (ya actualizado por Controlfile)
         await loadProducts(store.id)
         await loadSheetInfo(store.id)
         
@@ -720,7 +613,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
-  // Función para crear backup
   const handleCreateBackup = async () => {
     if (!store) return
     
@@ -741,7 +633,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     }
   }
 
-  // Función para guardar configuración de Google Sheets (legacy)
   const handleSaveGoogleSheetsConfig = async () => {
     if (!store) return
     
@@ -766,43 +657,10 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <Shield className="w-16 h-16 mx-auto mb-4 text-primary" />
-            <CardTitle className="text-2xl">Panel de Administración</CardTitle>
-            <CardDescription>
-              {user ? "No tienes permisos para acceder a esta tienda" : "Inicia sesión para continuar"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!user ? (
-              <Button onClick={handleLogin} className="w-full" size="lg">
-                Iniciar sesión con Google
-              </Button>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-center text-muted-foreground">
-                  Sesión iniciada como: {user.email}
-                </p>
-                <Button onClick={handleLogin} className="w-full" variant="outline">
-                  Cambiar de cuenta
-                </Button>
-              </div>
-            )}
-            <p className="text-xs text-center text-muted-foreground">
-              Solo el dueño de la tienda puede acceder a este panel
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    return <AdminAuthGate user={user} onLogin={handleLogin} />
   }
 
-  // Secciones
   const categories = categoriesList
-
   const sections = [
     { id: "destacados", name: "Destacados", description: "Nuestros platos más populares", order: 1 },
     { id: "menu-principal", name: "Menú Principal", order: 2 }
@@ -810,64 +668,18 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-background sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <StoreIcon className="w-8 h-8 text-primary" />
-              <div>
-                <h1 className="text-xl font-bold">Panel de Administración</h1>
-                <p className="text-sm text-muted-foreground">{store?.config.name}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" asChild>
-                <Link href={`/${resolvedParams.storeSlug}`} target="_blank" rel="noopener noreferrer">
-                  Ver tienda
-                </Link>
-              </Button>
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Cerrar sesión
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <StoreAdminHeader 
+        storeName={store?.config.name || ""} 
+        storeSlug={resolvedParams.storeSlug} 
+        onLogout={handleLogout} 
+      />
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <div className="grid md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Total productos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">{products.length}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Disponibles</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-green-500">
-                {products.filter((p) => p.available).length}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Destacados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">
-                {products.filter((p) => p.featured).length}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <StoreStatsCards 
+          totalProducts={products.length}
+          availableProducts={products.filter((p) => p.available).length}
+          featuredProducts={products.filter((p) => p.featured).length}
+        />
 
         <Card>
           <CardHeader>
@@ -879,132 +691,32 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                   {sheetInfo ? " Los cambios se sincronizan con Google Sheets." : " Configura Google Sheets para sincronización automática."}
                 </CardDescription>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {/* Google Sheets - Nueva integración */}
-                {!sheetInfo ? (
-                  <Button variant="outline" onClick={handleCreateGoogleSheet} disabled={isCreatingSheet}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    {isCreatingSheet ? "Creando hoja..." : "Crear hoja en Google Drive"}
-                  </Button>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" onClick={handleSyncFromGoogleSheets} disabled={isSyncing}>
-                        <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                        {isSyncing ? "Sincronizando..." : "Sincronizar desde Google Sheets"}
-                      </Button>
-                      {sheetInfo.lastSynced && (
-                        <span className="text-xs text-muted-foreground">
-                          Última sync: {new Date(sheetInfo.lastSynced).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                    <Button variant="outline" onClick={handleCreateBackup} disabled={isCreatingBackup}>
-                      <Download className="w-4 h-4 mr-2" />
-                      {isCreatingBackup ? "Creando backup..." : "Crear backup"}
-                    </Button>
-                    <Button variant="outline" onClick={() => window.open(sheetInfo.editUrl, '_blank')}>
-                      <LinkIcon className="w-4 h-4 mr-2" />
-                      Abrir hoja
-                    </Button>
-                  </>
-                )}
-                
-                {/* Configuración legacy */}
-                <Button variant="outline" onClick={() => setIsConfigOpen(true)}>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Configuración legacy
-                </Button>
-                
-                {/* Excel import/export */}
-                <Button variant="outline" onClick={handleDownloadTemplate}>
-                  <Download className="w-4 h-4 mr-2" />
-                  {products.length > 0 ? 'Exportar Excel' : 'Descargar Plantilla'}
-                </Button>
-                <Button variant="outline" onClick={handleImportCSV} disabled={isImporting}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  {isImporting ? "Importando..." : "Importar Excel"}
-                </Button>
-                <Button onClick={handleCreateProduct}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nuevo producto
-                </Button>
-              </div>
+              <ProductsActions
+                hasSheetInfo={!!sheetInfo}
+                isSyncing={isSyncing}
+                isCreatingSheet={isCreatingSheet}
+                isCreatingBackup={isCreatingBackup}
+                lastSynced={sheetInfo?.lastSynced}
+                sheetEditUrl={sheetInfo?.editUrl}
+                onCreateGoogleSheet={handleCreateGoogleSheet}
+                onSyncFromSheets={handleSyncFromGoogleSheets}
+                onCreateBackup={handleCreateBackup}
+                onOpenSheet={() => sheetInfo && window.open(sheetInfo.editUrl, '_blank')}
+                onConfigLegacy={() => setIsConfigOpen(true)}
+                onDownloadTemplate={handleDownloadTemplate}
+                onImportCSV={handleImportCSV}
+                onCreateProduct={handleCreateProduct}
+                productsCount={products.length}
+              />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead>Precio</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No hay productos. Crea uno nuevo para comenzar.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    products.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-muted-foreground line-clamp-1">
-                              {product.description}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {product.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatPrice(product.basePrice)}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {product.available ? (
-                              <Badge variant="default" className="bg-green-500">
-                                Disponible
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">No disponible</Badge>
-                            )}
-                            {product.featured && <Badge variant="default">Destacado</Badge>}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleEditProduct(product)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <ProductsTable
+              products={products}
+              formatPrice={formatPrice}
+              onEdit={handleEditProduct}
+              onDelete={handleDeleteProduct}
+            />
           </CardContent>
         </Card>
       </main>
@@ -1034,228 +746,20 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
         </DialogContent>
       </Dialog>
 
-      {/* Modal de confirmación de importación */}
-      <Dialog open={isImportConfirmOpen} onOpenChange={setIsImportConfirmOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <FileText className="w-6 h-6 text-primary" />
-              Confirmar Importación de Productos
-            </DialogTitle>
-            <DialogDescription>
-              Revisa los cambios que se realizarán en tu catálogo de productos
-            </DialogDescription>
-          </DialogHeader>
+      <ImportConfirmationDialog
+        open={isImportConfirmOpen}
+        onOpenChange={setIsImportConfirmOpen}
+        pendingImportData={pendingImportData}
+        onConfirm={handleConfirmImport}
+      />
 
-          {pendingImportData && (
-            <div className="space-y-4">
-              {/* Estadísticas principales */}
-              <div className="grid grid-cols-3 gap-4">
-                <Card className="bg-red-50 border-red-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingDown className="w-5 h-5 text-red-600" />
-                      <CardTitle className="text-sm font-medium text-red-700">Se Eliminarán</CardTitle>
-                    </div>
-                    <p className="text-2xl font-bold text-red-600">{pendingImportData.toDelete}</p>
-                    <p className="text-xs text-red-500">productos actuales</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-green-50 border-green-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                      <CardTitle className="text-sm font-medium text-green-700">Se Agregarán</CardTitle>
-                    </div>
-                    <p className="text-2xl font-bold text-green-600">{pendingImportData.toAdd}</p>
-                    <p className="text-xs text-green-500">productos nuevos</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-blue-50 border-blue-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <RefreshCw className="w-5 h-5 text-blue-600" />
-                      <CardTitle className="text-sm font-medium text-blue-700">Se Actualizarán</CardTitle>
-                    </div>
-                    <p className="text-2xl font-bold text-blue-600">{pendingImportData.toEdit}</p>
-                    <p className="text-xs text-blue-500">productos modificados</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Resumen */}
-              <div className="bg-muted p-4 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-2">
-                  <strong className="text-foreground">Total actual:</strong> {pendingImportData.totalCurrent} productos
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Total después:</strong> {pendingImportData.totalNew} productos
-                </p>
-              </div>
-
-              {/* Lista de productos a eliminar */}
-              {pendingImportData.toDelete > 0 && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-600">
-                      <AlertTriangle className="w-4 h-4" />
-                      Productos que se eliminarán (primeros 5):
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1">
-                      {pendingImportData.deleteList.map((name: string, idx: number) => (
-                        <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                          {name}
-                        </li>
-                      ))}
-                      {pendingImportData.toDelete > 5 && (
-                        <li className="text-xs text-muted-foreground italic">
-                          ...y {pendingImportData.toDelete - 5} más
-                        </li>
-                      )}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Lista de productos nuevos */}
-              {pendingImportData.toAdd > 0 && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Productos nuevos (primeros 5):
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1">
-                      {pendingImportData.addList.map((name: string, idx: number) => (
-                        <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                          {name}
-                        </li>
-                      ))}
-                      {pendingImportData.toAdd > 5 && (
-                        <li className="text-xs text-muted-foreground italic">
-                          ...y {pendingImportData.toAdd - 5} más
-                        </li>
-                      )}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Advertencia */}
-              <Card className="border-amber-200 bg-amber-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-900 mb-1">
-                        Esta acción reemplazará todos tus productos actuales
-                      </p>
-                      <p className="text-xs text-amber-700">
-                        Asegúrate de haber exportado un respaldo si deseas conservar los productos actuales
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => {
-              setIsImportConfirmOpen(false)
-              setPendingImportData(null)
-            }}>
-              Cancelar
-            </Button>
-            <Button onClick={handleConfirmImport} className="gap-2">
-              <Upload className="w-4 h-4" />
-              Confirmar Importación
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de configuración de Google Sheets */}
-      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <LinkIcon className="w-6 h-6 text-primary" />
-              Configurar Google Sheets
-            </DialogTitle>
-            <DialogDescription>
-              Conecta tu tienda con una hoja de Google Sheets para sincronización automática
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">URL de Google Sheets (CSV)</label>
-              <input
-                type="url"
-                value={googleSheetsUrl}
-                onChange={(e) => setGoogleSheetsUrl(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/[ID]/export?format=csv&gid=0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <p className="text-xs text-muted-foreground">
-                Para obtener esta URL: Comparte tu hoja como "Cualquier persona con el enlace puede ver" 
-                y usa la URL de exportación CSV
-              </p>
-            </div>
-
-            {googleSheetsUrl && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-900 mb-1">
-                      Estructura requerida de la hoja:
-                    </p>
-                    <p className="text-xs text-blue-700">
-                      Nombre | Descripción | Variedades 1 | Variedades 1 Título | ... | Categoría | Precio | Precio anterior | Imagen (URL)
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-900 mb-1">
-                    Importante:
-                  </p>
-                  <ul className="text-xs text-amber-700 space-y-1">
-                    <li>• La hoja debe ser pública (cualquier persona con el enlace puede ver)</li>
-                    <li>• Usa la URL de exportación CSV, no la URL de edición</li>
-                    <li>• La primera fila debe contener los encabezados de columnas</li>
-                    <li>• Al sincronizar se reemplazarán todos los productos actuales</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setIsConfigOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveGoogleSheetsConfig}>
-              Guardar Configuración
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <GoogleSheetsConfigDialog
+        open={isConfigOpen}
+        onOpenChange={setIsConfigOpen}
+        googleSheetsUrl={googleSheetsUrl}
+        onUrlChange={setGoogleSheetsUrl}
+        onSave={handleSaveGoogleSheetsConfig}
+      />
     </div>
   )
 }
