@@ -9,11 +9,12 @@ import {
   setDoc, 
   updateDoc,
   addDoc,
+  deleteDoc,
   serverTimestamp,
   Timestamp,
   arrayUnion 
 } from 'firebase/firestore'
-import type { Store, Invitation, User } from './types'
+import type { Store, Invitation, User, Product } from './types'
 
 // Constante para el nombre de la app en la estructura compartida
 const APP_ID = 'control-store'
@@ -21,7 +22,19 @@ const APP_ID = 'control-store'
 // Verificar si Firebase está disponible
 function checkFirebaseConnection() {
   if (!db) {
-    throw new Error('Firebase no está inicializado. Verifica las variables de entorno.')
+    const hasApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.NEXT_PUBLIC_REBASE_API_KEY
+    const hasAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.NEXT_PUBLIC_REBASE_AUTH_DOMAIN
+    const hasProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_REBASE_PROJECT_ID
+    
+    const missing = []
+    if (!hasApiKey) missing.push('NEXT_PUBLIC_FIREBASE_API_KEY')
+    if (!hasAuthDomain) missing.push('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN')
+    if (!hasProjectId) missing.push('NEXT_PUBLIC_FIREBASE_PROJECT_ID')
+    
+    if (missing.length > 0) {
+      throw new Error(`Firebase no está inicializado. Faltan variables: ${missing.join(', ')}. Verifica tu archivo .env.local`)
+    }
+    throw new Error('Firebase no está inicializado. Verifica tus variables de entorno en .env.local')
   }
 }
 
@@ -38,7 +51,7 @@ const getStoreDoc = (storeId: string) => {
   checkFirebaseConnection()
   return doc(db, 'apps', APP_ID, 'stores', storeId)
 }
-const getProductsCollection = (storeId: string) => {
+export const getProductsCollection = (storeId: string) => {
   checkFirebaseConnection()
   return collection(db, 'apps', APP_ID, 'stores', storeId, 'products')
 }
@@ -55,6 +68,8 @@ export async function createStore(data: Omit<Store, 'id' | 'createdAt' | 'update
 }
 
 export async function getStoreBySlug(slug: string): Promise<Store | null> {
+  if (!slug) return null
+  
   const q = query(getStoresCollection(), where('slug', '==', slug))
   const querySnapshot = await getDocs(q)
   
@@ -221,5 +236,32 @@ export async function isUserOwnerOfStore(userId: string, storeSlug: string): Pro
   if (!store) return false
   
   return store.ownerId === userId
+}
+
+// ===== PRODUCTS =====
+
+export async function getStoreProducts(storeId: string): Promise<Product[]> {
+  const productsRef = getProductsCollection(storeId)
+  const snapshot = await getDocs(productsRef)
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Product[]
+}
+
+export async function addProductToStore(storeId: string, product: Omit<Product, 'id'>): Promise<string> {
+  const productsRef = getProductsCollection(storeId)
+  const docRef = await addDoc(productsRef, product)
+  return docRef.id
+}
+
+export async function updateProductInStore(storeId: string, productId: string, product: Partial<Product>): Promise<void> {
+  const productRef = doc(db, 'apps', APP_ID, 'stores', storeId, 'products', productId)
+  await updateDoc(productRef, product as any)
+}
+
+export async function deleteProductFromStore(storeId: string, productId: string): Promise<void> {
+  const productRef = doc(db, 'apps', APP_ID, 'stores', storeId, 'products', productId)
+  await deleteDoc(productRef)
 }
 

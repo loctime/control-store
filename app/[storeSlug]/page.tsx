@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, use } from "react"
 import { useStore } from "@/lib/store"
 import { ProductCard } from "@/components/product-card"
 import { ProductDetailModal } from "@/components/product-detail-modal"
 import { CategoryFilter } from "@/components/category-filter"
+import { CartSidebar } from "@/components/cart-sidebar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, CartItem } from "@/lib/types"
@@ -16,12 +17,13 @@ import { db } from "@/lib/firebase"
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 
 interface StorePageProps {
-  params: {
+  params: Promise<{
     storeSlug: string
-  }
+  }>
 }
 
 export default function StorePage({ params }: StorePageProps) {
+  const resolvedParams = use(params)
   const { addToCart, cart } = useStore()
   const [store, setStore] = useState<Store | null>(null)
   const [products, setProducts] = useState<Product[]>([])
@@ -30,17 +32,18 @@ export default function StorePage({ params }: StorePageProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isCartOpen, setIsCartOpen] = useState(false)
 
   useEffect(() => {
     loadStoreData()
-  }, [params.storeSlug])
+  }, [resolvedParams.storeSlug])
 
   async function loadStoreData() {
     try {
       setIsLoading(true)
       
       // Cargar información de la tienda
-      const storeData = await getStoreBySlug(params.storeSlug)
+      const storeData = await getStoreBySlug(resolvedParams.storeSlug)
       if (!storeData) {
         console.error("Tienda no encontrada")
         return
@@ -147,16 +150,18 @@ export default function StorePage({ params }: StorePageProps) {
                 <p className="text-xs text-muted-foreground">Pedidos online</p>
               </div>
             </div>
-            <Link href={`/${params.storeSlug}/carrito`}>
-              <Button size="lg" className="relative">
-                <ShoppingCart className="w-5 h-5" />
-                {cartItemsCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-                    {cartItemsCount}
-                  </Badge>
-                )}
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              className="relative"
+              onClick={() => setIsCartOpen(true)}
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cartItemsCount > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
+                  {cartItemsCount}
+                </Badge>
+              )}
+            </Button>
           </div>
         </div>
       </header>
@@ -205,6 +210,13 @@ export default function StorePage({ params }: StorePageProps) {
         open={selectedProduct !== null}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
+      />
+
+      {/* Sidebar del carrito */}
+      <CartSidebar
+        open={isCartOpen}
+        onOpenChange={setIsCartOpen}
+        storeSlug={resolvedParams.storeSlug}
       />
     </div>
   )
