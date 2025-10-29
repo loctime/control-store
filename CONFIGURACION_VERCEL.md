@@ -57,15 +57,22 @@ Una vez configurado, deberías poder:
 
 ## 🐛 Solución de Problemas
 
-Si ves el error `auth/invalid-api-key`:
-1. Verifica que todas las variables estén configuradas
+### Error `auth/invalid-api-key`:
+1. Verifica que todas las variables estén configuradas en Vercel
 2. Verifica que tengan el prefijo `NEXT_PUBLIC_`
 3. Verifica que no tengan espacios extra al inicio/final
 4. Haz un nuevo deploy después de agregar las variables
 
-Si ves el error `location is not defined`:
-- Esto ya está corregido en el código
-- Solo necesitas configurar las variables de entorno
+### Error `location is not defined`:
+- ✅ Esto ya está corregido en el código (protección de `window`)
+
+### Error `revalidate is on the client`:
+- ✅ Corregido: Se eliminaron las exportaciones de `revalidate` de páginas cliente
+
+### Advertencia sobre middleware:
+- ⚠️ El middleware está deprecado en Next.js 16
+- Es solo una advertencia, no afecta el funcionamiento
+- Puedes ignorarla por ahora o actualizar a la nueva convención en el futuro
 
 ## 📚 Documentación Adicional
 

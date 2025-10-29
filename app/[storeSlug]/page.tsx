@@ -1,10 +1,5 @@
 "use client"
 
-// Forzar renderizado dinámico
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-export const revalidate = 0
-
 import { useEffect, useState } from "react"
 import { useStore } from "@/lib/store"
 import { ProductCard } from "@/components/product-card"
@@ -53,6 +48,13 @@ export default function StorePage({ params }: StorePageProps) {
       setStore(storeData)
 
       // Cargar productos de la tienda desde Firestore
+      // Verificar que db esté disponible
+      if (!db) {
+        console.warn("Firebase no está inicializado")
+        setProducts([])
+        return
+      }
+      
       const productsRef = collection(db, 'apps', 'control-store', 'stores', storeData.id, 'products')
       const productsSnapshot = await getDocs(productsRef)
       

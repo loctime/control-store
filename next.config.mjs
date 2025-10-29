@@ -18,10 +18,6 @@ const nextConfig = {
   // Optimizaciones adicionales
   compress: true,
   poweredByHeader: false,
-  // Evitar problemas con middleware en Next.js 16
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 }
 
 export default nextConfig

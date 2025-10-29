@@ -1,13 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-
-// Forzar renderizado dinámico
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-
-// Prevenir caché en esta página
-export const revalidate = 0
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
 import { isAuthenticated, logout } from "@/lib/auth"

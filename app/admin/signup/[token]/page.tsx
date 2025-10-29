@@ -1,10 +1,5 @@
 "use client"
 
-// Forzar renderizado dinámico
-export const dynamic = 'force-dynamic'
-export const dynamicParams = true
-export const revalidate = 0
-
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useAuthState } from "react-firebase-hooks/auth"
@@ -153,25 +148,27 @@ export default function SignupPage() {
       await markInvitationAsUsed(token, user.email || "", user.uid)
 
       // Crear carpeta principal en ControlFile (si existe)
-      try {
-        const mainFolder = {
-          id: `store-${storeId}-main`,
-          userId: user.uid,
-          name: storeName,
-          type: 'folder',
-          parentId: null,
-          metadata: {
-            source: 'taskbar',
-            icon: 'Taskbar',
-            color: 'text-blue-600',
-            storeId: storeId,
-          },
+      if (db) {
+        try {
+          const mainFolder = {
+            id: `store-${storeId}-main`,
+            userId: user.uid,
+            name: storeName,
+            type: 'folder',
+            parentId: null,
+            metadata: {
+              source: 'taskbar',
+              icon: 'Taskbar',
+              color: 'text-blue-600',
+              storeId: storeId,
+            },
+          }
+          // Usar la estructura compartida correcta: apps > control-store > files
+          await setDoc(doc(db, 'apps', 'control-store', 'files', mainFolder.id), mainFolder)
+        } catch (error) {
+          console.warn("No se pudo crear carpeta en ControlFile:", error)
+          // No es crítico si falla
         }
-        // Usar la estructura compartida correcta: apps > control-store > files
-        await setDoc(doc(db, 'apps', 'control-store', 'files', mainFolder.id), mainFolder)
-      } catch (error) {
-        console.warn("No se pudo crear carpeta en ControlFile:", error)
-        // No es crítico si falla
       }
 
       setSuccess(true)
