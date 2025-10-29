@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, CartItem } from "@/lib/types"
 import type { Store } from "@/lib/types"
-import { ShoppingCart, Store as StoreIcon, Loader2 } from "lucide-react"
+import { ShoppingCart, Store as StoreIcon, Loader2, Settings } from "lucide-react"
 import Link from "next/link"
 import { getStoreBySlug, getStoreCategories } from "@/lib/stores"
 import { getProductsFromSheets } from "@/lib/controlfile-api"
@@ -179,18 +179,25 @@ export default function StorePage({ params }: StorePageProps) {
                   <p className="text-xs text-muted-foreground">Pedidos online</p>
                 </div>
               </div>
-              <Button 
-                size="lg" 
-                className="relative"
-                onClick={() => setIsCartOpen(true)}
-              >
-                <ShoppingCart className="w-5 h-5" />
-                {cartItemsCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-                    {cartItemsCount}
-                  </Badge>
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Link href={`/${resolvedParams.storeSlug}/admin`}>
+                  <Button size="lg" variant="outline">
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                </Link>
+                <Button 
+                  size="lg" 
+                  className="relative"
+                  onClick={() => setIsCartOpen(true)}
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  {cartItemsCount > 0 && (
+                    <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
+                      {cartItemsCount}
+                    </Badge>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </header>

@@ -13,11 +13,11 @@ import { StoreLocation } from "@/components/store-location"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, CartItem } from "@/lib/types"
-import { ShoppingCart, Store } from "lucide-react"
+import { ShoppingCart, Store, Settings } from "lucide-react"
 import Link from "next/link"
 
 export default function HomePage() {
-  const { products, categories, sections, setProducts, setCategories, setSections, addToCart, cart } = useStore()
+  const { products, categories, sections, storeConfig, setProducts, setCategories, setSections, addToCart, cart } = useStore()
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -85,16 +85,23 @@ export default function HomePage() {
                   <p className="text-xs text-muted-foreground">Pedidos online</p>
                 </div>
               </div>
-              <Link href="/carrito">
-                <Button size="lg" className="relative">
-                  <ShoppingCart className="w-5 h-5" />
-                  {cartItemsCount > 0 && (
-                    <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-                      {cartItemsCount}
-                    </Badge>
-                  )}
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href="/admin">
+                  <Button size="lg" variant="outline">
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                </Link>
+                <Link href="/carrito">
+                  <Button size="lg" className="relative">
+                    <ShoppingCart className="w-5 h-5" />
+                    {cartItemsCount > 0 && (
+                      <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
+                        {cartItemsCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </header>
