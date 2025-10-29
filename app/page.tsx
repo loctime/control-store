@@ -6,6 +6,7 @@ import { loadProductsFromJSON } from "@/lib/data-loader"
 import { ProductCard } from "@/components/product-card"
 import { ProductDetailModal } from "@/components/product-detail-modal"
 import { CategoryFilter } from "@/components/category-filter"
+import { StoreThemeProvider } from "@/components/store-theme-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, CartItem } from "@/lib/types"
@@ -68,31 +69,32 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Store className="w-8 h-8 text-primary" />
-              <div>
-                <h1 className="text-xl font-bold leading-tight">Mi Restaurante</h1>
-                <p className="text-xs text-muted-foreground">Pedidos online</p>
+    <StoreThemeProvider store={null}>
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="sticky top-0 z-50 bg-background border-b">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Store className="w-8 h-8 text-primary" />
+                <div>
+                  <h1 className="text-xl font-bold leading-tight">Mi Restaurante</h1>
+                  <p className="text-xs text-muted-foreground">Pedidos online</p>
+                </div>
               </div>
+              <Link href="/carrito">
+                <Button size="lg" className="relative">
+                  <ShoppingCart className="w-5 h-5" />
+                  {cartItemsCount > 0 && (
+                    <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
+                      {cartItemsCount}
+                    </Badge>
+                  )}
+                </Button>
+              </Link>
             </div>
-            <Link href="/carrito">
-              <Button size="lg" className="relative">
-                <ShoppingCart className="w-5 h-5" />
-                {cartItemsCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-                    {cartItemsCount}
-                  </Badge>
-                )}
-              </Button>
-            </Link>
           </div>
-        </div>
-      </header>
+        </header>
 
       <main className="container mx-auto px-4 py-6 space-y-8">
         {/* Destacados */}
@@ -139,6 +141,7 @@ export default function HomePage() {
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
       />
-    </div>
+      </div>
+    </StoreThemeProvider>
   )
 }

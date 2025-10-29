@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProductForm } from "@/components/admin/product-form"
 import { InvitationLinkGenerator } from "@/components/admin/invitation-link-generator"
 import type { Product } from "@/lib/types"
-import { Plus, Edit, Trash2, LogOut, Store, Users } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store, Users, Palette } from "lucide-react"
 import { loadProductsFromJSON } from "@/lib/data-loader"
 
 export default function AdminDashboard() {
@@ -109,10 +109,16 @@ export default function AdminDashboard() {
                 <p className="text-sm text-muted-foreground">Gestión de productos</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar sesión
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push('/admin/customization')}>
+                <Palette className="w-4 h-4 mr-2" />
+                Personalizar
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Cerrar sesión
+              </Button>
+            </div>
           </div>
         </div>
       </header>

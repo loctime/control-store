@@ -6,6 +6,7 @@ import { ProductCard } from "@/components/product-card"
 import { ProductDetailModal } from "@/components/product-detail-modal"
 import { CategoryFilter } from "@/components/category-filter"
 import { CartSidebar } from "@/components/cart-sidebar"
+import { StoreThemeProvider } from "@/components/store-theme-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, CartItem } from "@/lib/types"
@@ -147,55 +148,107 @@ export default function StorePage({ params }: StorePageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <StoreIcon className="w-8 h-8 text-primary" />
-              <div>
-                <h1 className="text-xl font-bold leading-tight">{store.config.name}</h1>
-                <p className="text-xs text-muted-foreground">Pedidos online</p>
+    <StoreThemeProvider store={store}>
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="sticky top-0 z-50 bg-background border-b">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {store.config.branding?.logo ? (
+                  <img 
+                    src={store.config.branding.logo} 
+                    alt={store.config.name}
+                    className="w-8 h-8 rounded"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground">
+                    {store.config.branding?.logoIcon === 'pizza' && '🍕'}
+                    {store.config.branding?.logoIcon === 'restaurant' && '🍽️'}
+                    {store.config.branding?.logoIcon === 'coffee' && '☕'}
+                    {store.config.branding?.logoIcon === 'ice-cream' && '🍦'}
+                    {store.config.branding?.logoIcon === 'bakery' && '🥖'}
+                    {(!store.config.branding?.logoIcon || store.config.branding?.logoIcon === 'store') && '🏪'}
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-xl font-bold leading-tight">{store.config.name}</h1>
+                  <p className="text-xs text-muted-foreground">Pedidos online</p>
+                </div>
               </div>
+              <Button 
+                size="lg" 
+                className="relative"
+                onClick={() => setIsCartOpen(true)}
+              >
+                <ShoppingCart className="w-5 h-5" />
+                {cartItemsCount > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
+                    {cartItemsCount}
+                  </Badge>
+                )}
+              </Button>
             </div>
-            <Button 
-              size="lg" 
-              className="relative"
-              onClick={() => setIsCartOpen(true)}
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {cartItemsCount > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-                  {cartItemsCount}
-                </Badge>
-              )}
-            </Button>
           </div>
-        </div>
-      </header>
+        </header>
 
       <main className="container mx-auto px-4 py-6 space-y-8">
         {/* Destacados */}
         {featuredProducts.length > 0 && (
-          <section>
-            <h2 className="text-2xl font-bold mb-4">Destacados</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-              {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} onProductClick={handleProductClick} />
-              ))}
+          <section 
+            className="relative rounded-lg overflow-hidden p-6"
+            style={{
+              backgroundImage: store.config.backgrounds?.featured?.image ? `url(${store.config.backgrounds.featured.image})` : undefined,
+              backgroundColor: store.config.backgrounds?.featured?.color || 'var(--featured-bg, #fef3c7)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            }}
+          >
+            {store.config.backgrounds?.featured?.image && (
+              <div 
+                className="absolute inset-0"
+                style={{
+                  backgroundColor: `rgba(0, 0, 0, ${store.config.backgrounds.featured.overlay || 0.1})`
+                }}
+              />
+            )}
+            <div className="relative z-10">
+              <h2 className="text-2xl font-bold mb-4">Destacados</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                {featuredProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} onProductClick={handleProductClick} />
+                ))}
+              </div>
             </div>
           </section>
         )}
 
         {/* Filtro de categorías */}
-        <section>
-          <h2 className="text-2xl font-bold mb-4">Menú</h2>
-          <CategoryFilter
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
+        <section 
+          className="relative rounded-lg overflow-hidden p-6"
+          style={{
+            backgroundImage: store.config.backgrounds?.menu?.image ? `url(${store.config.backgrounds.menu.image})` : undefined,
+            backgroundColor: store.config.backgrounds?.menu?.color || 'var(--menu-bg, #f9fafb)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        >
+          {store.config.backgrounds?.menu?.image && (
+            <div 
+              className="absolute inset-0"
+              style={{
+                backgroundColor: `rgba(0, 0, 0, ${store.config.backgrounds.menu.overlay || 0.05})`
+              }}
+            />
+          )}
+          <div className="relative z-10">
+            <h2 className="text-2xl font-bold mb-4">Menú</h2>
+            <CategoryFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+            />
+          </div>
         </section>
 
         {/* Lista de productos */}
@@ -227,7 +280,8 @@ export default function StorePage({ params }: StorePageProps) {
         onOpenChange={setIsCartOpen}
         storeSlug={resolvedParams.storeSlug}
       />
-    </div>
+      </div>
+    </StoreThemeProvider>
   )
 }
 

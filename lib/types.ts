@@ -85,6 +85,48 @@ export interface StoreConfig {
   minOrderAmount: number
   openingHours: string
   googleSheetsUrl?: string
+  
+  // Personalización visual
+  branding?: {
+    logo?: string
+    logoIcon?: string
+    primaryColor?: string
+    secondaryColor?: string
+    accentColor?: string
+    backgroundColor?: string
+    textColor?: string
+    borderRadius?: 'sm' | 'md' | 'lg' | 'xl'
+  }
+  
+  // Fondos por sección
+  backgrounds?: {
+    featured?: {
+      image?: string
+      color?: string
+      overlay?: number
+    }
+    menu?: {
+      image?: string
+      color?: string
+      overlay?: number
+    }
+    categories?: {
+      [categoryId: string]: {
+        image?: string
+        color?: string
+        overlay?: number
+      }
+    }
+  }
+  
+  // Configuración de UI
+  ui?: {
+    showPrices?: boolean
+    showDescriptions?: boolean
+    productImageSize?: 'small' | 'medium' | 'large'
+    cardStyle?: 'minimal' | 'detailed' | 'compact'
+    layout?: 'grid' | 'list'
+  }
 }
 
 export interface Store {
