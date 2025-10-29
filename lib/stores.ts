@@ -67,6 +67,28 @@ export async function createStore(data: Omit<Store, 'id' | 'createdAt' | 'update
   return docRef.id
 }
 
+export async function getAllStores(): Promise<Store[]> {
+  const querySnapshot = await getDocs(getStoresCollection())
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Store[]
+}
+
+export async function deleteStore(storeId: string): Promise<void> {
+  const storeRef = getStoreDoc(storeId)
+  await deleteDoc(storeRef)
+}
+
+export async function updateStoreOwner(storeId: string, newOwnerEmail: string, newOwnerId: string): Promise<void> {
+  const storeRef = getStoreDoc(storeId)
+  await updateDoc(storeRef, {
+    ownerEmail: newOwnerEmail,
+    ownerId: newOwnerId,
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function getStoreBySlug(slug: string): Promise<Store | null> {
   if (!slug) return null
   

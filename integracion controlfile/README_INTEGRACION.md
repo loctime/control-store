@@ -12,6 +12,7 @@
 
 ### 🔌 **Integración con APIs Externas**
 - **[Integración con APIs](./api-externa/)** - Con APIs de ControlFile
+- **[Google Sheets Integration](./GOOGLE_SHEETS_STORE.md)** - Gestión de productos con Google Sheets
 - **Ventajas:** Validaciones del backend, pero más complejo
 
 ## 🎯 **¿Cuál Usar?**

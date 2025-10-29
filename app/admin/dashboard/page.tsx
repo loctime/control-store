@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
-import { isAuthenticated, logout } from "@/lib/auth"
+import { isAuthenticated, logout, getCurrentUser, onAuthChange } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -12,9 +12,11 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProductForm } from "@/components/admin/product-form"
 import { InvitationLinkGenerator } from "@/components/admin/invitation-link-generator"
+import { StoresList } from "@/components/admin/stores-list"
 import type { Product } from "@/lib/types"
-import { Plus, Edit, Trash2, LogOut, Store, Users, Palette } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store, Users, Palette, Building2 } from "lucide-react"
 import { loadProductsFromJSON } from "@/lib/data-loader"
+import { getAllStores } from "@/lib/stores"
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -32,26 +34,59 @@ export default function AdminDashboard() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [stores, setStores] = useState<any[]>([])
+  const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    // Verificar autenticación con Firebase Auth
+    const unsubscribe = onAuthChange((user) => {
+      if (user) {
+        setUser(user)
+        // Verificar que el usuario tenga rol maxdev
+        checkUserRole(user.uid)
+      } else {
+        router.push("/admin")
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
+  const checkUserRole = async (uid: string) => {
+    try {
+      // Aquí podrías verificar el rol del usuario en Firestore si es necesario
+      // Por ahora asumimos que si está autenticado con maxdev@gmail.com, tiene permisos
+      if (user?.email === "maxdev@gmail.com") {
+        loadData()
+      } else {
+        router.push("/admin")
+      }
+    } catch (error) {
+      console.error("Error verificando rol:", error)
       router.push("/admin")
-      return
     }
+  }
 
-    const loadData = async () => {
-      setIsLoading(true)
-      const data = await loadProductsFromJSON()
-      setProducts(data.products)
-      setCategories(data.categories)
-      setSections(data.sections)
-      setIsLoading(false)
+  const loadData = async () => {
+    setIsLoading(true)
+    const data = await loadProductsFromJSON()
+    setProducts(data.products)
+    setCategories(data.categories)
+    setSections(data.sections)
+    
+    // Cargar tiendas
+    try {
+      const storesData = await getAllStores()
+      setStores(storesData)
+    } catch (error) {
+      console.error("Error cargando tiendas:", error)
     }
-    loadData()
-  }, [router, setProducts, setCategories, setSections])
+    
+    setIsLoading(false)
+  }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.push("/admin")
   }
 
@@ -130,6 +165,10 @@ export default function AdminDashboard() {
               <Users className="w-4 h-4" />
               Invitaciones
             </TabsTrigger>
+            <TabsTrigger value="stores" className="flex items-center gap-2">
+              <Building2 className="w-4 h-4" />
+              Tiendas
+            </TabsTrigger>
             <TabsTrigger value="products" className="flex items-center gap-2">
               <Store className="w-4 h-4" />
               Productos
@@ -138,6 +177,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="invitations" className="space-y-4">
             <InvitationLinkGenerator />
+          </TabsContent>
+
+          <TabsContent value="stores" className="space-y-4">
+            <StoresList onStoreUpdate={loadData} />
           </TabsContent>
 
           <TabsContent value="products">
@@ -226,7 +269,16 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
 
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Total tiendas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-primary">{stores.length}</p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Total productos</CardTitle>

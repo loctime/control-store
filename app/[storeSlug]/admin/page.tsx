@@ -611,9 +611,12 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
       const response = await getSheetInfo(storeId)
       if (response.success && response.data) {
         setSheetInfo(response.data)
+      } else {
+        setSheetInfo(null)
       }
     } catch (error) {
       console.error('Error cargando información de la hoja:', error)
+      setSheetInfo(null)
     }
   }
 
@@ -724,8 +727,8 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     try {
       const response = await createSheetBackup(store.id)
       
-      if (response.success) {
-        alert(`✅ Backup creado correctamente!\n\nURL: ${response.data?.backupUrl}`)
+      if (response.success && response.data) {
+        alert(`✅ Backup creado correctamente!\n\nURL: ${response.data.backupUrl}`)
       } else {
         alert(`Error: ${response.error || 'No se pudo crear el backup'}`)
       }
