@@ -12,7 +12,7 @@ import type { Product, CartItem } from "@/lib/types"
 import type { Store } from "@/lib/types"
 import { ShoppingCart, Store as StoreIcon, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { getStoreBySlug } from "@/lib/stores"
+import { getStoreBySlug, getStoreCategories } from "@/lib/stores"
 import { db } from "@/lib/firebase"
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 
@@ -68,13 +68,20 @@ export default function StorePage({ params }: StorePageProps) {
       
       setProducts(productsData)
 
-      // Cargar categorías y secciones (por ahora hardcodeadas)
-      setCategories([
-        { id: "pizzas", name: "Pizzas", icon: "pizza", order: 1 },
-        { id: "empanadas", name: "Empanadas", icon: "utensils", order: 2 },
-        { id: "bebidas", name: "Bebidas", icon: "glass-water", order: 3 },
-        { id: "postres", name: "Postres", icon: "cake", order: 4 }
-      ])
+      // Cargar categorías dinámicamente desde Firestore
+      const storeCategories = await getStoreCategories(storeData.id)
+      
+      if (storeCategories.length > 0) {
+        setCategories(storeCategories)
+      } else {
+        // Fallback a categorías por defecto si no hay categorías en Firestore
+        setCategories([
+          { id: "pizzas", name: "Pizzas", icon: "pizza", order: 1 },
+          { id: "empanadas", name: "Empanadas", icon: "utensils", order: 2 },
+          { id: "bebidas", name: "Bebidas", icon: "glass-water", order: 3 },
+          { id: "postres", name: "Postres", icon: "cake", order: 4 }
+        ])
+      }
       
       setSections([
         { id: "destacados", name: "Destacados", description: "Nuestros platos más populares", order: 1 },

@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { auth } from "@/lib/firebase"
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth"
-import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection } from "@/lib/stores"
+import { getStoreBySlug, isUserOwnerOfStore, getProductsCollection, normalizeCategoryName, syncCategoriesFromProducts, getStoreCategories } from "@/lib/stores"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { Product, Store, ProductVariant } from "@/lib/types"
@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload } from "lucide-react"
+import { Plus, Edit, Trash2, LogOut, Store as StoreIcon, Shield, Download, Upload, AlertTriangle, CheckCircle2, FileText, TrendingUp, TrendingDown, RefreshCw } from "lucide-react"
 
 export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug: string }> }) {
   const resolvedParams = use(params)
@@ -28,6 +28,10 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isImporting, setIsImporting] = useState(false)
+  const [categoriesList, setCategoriesList] = useState<any[]>([])
+  const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false)
+  const [importPreview, setImportPreview] = useState<any>(null)
+  const [pendingImportData, setPendingImportData] = useState<any>(null)
 
   useEffect(() => {
     // Verificar autenticación
@@ -62,6 +66,19 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
 
       if (isOwner) {
         await loadProducts(storeData.id)
+        // Cargar categorías
+        const categories = await getStoreCategories(storeData.id)
+        if (categories.length > 0) {
+          setCategoriesList(categories)
+        } else {
+          // Fallback a categorías por defecto
+          setCategoriesList([
+            { id: "pizzas", name: "Pizzas", icon: "pizza", order: 1 },
+            { id: "empanadas", name: "Empanadas", icon: "utensils", order: 2 },
+            { id: "bebidas", name: "Bebidas", icon: "glass-water", order: 3 },
+            { id: "postres", name: "Postres", icon: "cake", order: 4 }
+          ])
+        }
       }
 
       setIsLoading(false)
@@ -129,17 +146,36 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     try {
       const productsRef = getProductsCollection(store.id)
       
-      if (productData.id && editingProduct) {
+      // Normalizar categoría antes de guardar
+      const normalizedData = {
+        ...productData,
+        category: productData.category ? normalizeCategoryName(productData.category) : productData.category
+      }
+      
+      if (normalizedData.id && editingProduct) {
         // Actualizar producto existente
-        const productRef = doc(db, 'apps', 'control-store', 'stores', store.id, 'products', productData.id)
-        await updateDoc(productRef, productData as any)
-        setProducts(products.map(p => p.id === productData.id ? { ...productData, id: productData.id } as Product : p))
+        const productRef = doc(db, 'apps', 'control-store', 'stores', store.id, 'products', normalizedData.id)
+        const { id, ...dataToUpdate } = normalizedData
+        await updateDoc(productRef, dataToUpdate as any)
+        setProducts(products.map(p => p.id === normalizedData.id ? { ...normalizedData } as Product : p))
       } else {
         // Crear nuevo producto
-        const { id, ...dataWithoutId } = productData
+        const { id, ...dataWithoutId } = normalizedData
         const docRef = await addDoc(productsRef, dataWithoutId)
         const newProduct = { ...dataWithoutId, id: docRef.id } as Product
         setProducts([...products, newProduct])
+      }
+      
+      // Sincronizar categorías después de guardar
+      const allProducts = editingProduct 
+        ? products.map(p => p.id === normalizedData.id ? { ...normalizedData } as Product : p)
+        : [...products, { ...normalizedData, id: (normalizedData.id || '') } as Product]
+      await syncCategoriesFromProducts(store.id, allProducts)
+      
+      // Recargar categorías actualizadas
+      const updatedCategories = await getStoreCategories(store.id)
+      if (updatedCategories.length > 0) {
+        setCategoriesList(updatedCategories)
       }
       
       setIsDialogOpen(false)
@@ -195,7 +231,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
       'Categoria Icono', 
       'Controlar Stock',
       'Tamaño Imagen',
-      'Imagen'
+      'Imagen (URL)' // Solo se aceptan enlaces a imágenes, no imágenes embebidas
     ]
     
     // Datos para la plantilla/exportación
@@ -225,7 +261,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           'Categoria Icono': '',
           'Controlar Stock': p.stockControl ? 'Sí' : 'No',
           'Tamaño Imagen': p.imageSize || 'medium',
-          'Imagen': p.image || ''
+          'Imagen (URL)': p.image || ''
         }
       })
     } else {
@@ -251,7 +287,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           'Categoria Icono': '',
           'Controlar Stock': 'No',
           'Tamaño Imagen': 'large',
-          'Imagen': ''
+          'Imagen (URL)': ''
         },
         {
           'Nombre': 'Pizza Napolitana',
@@ -273,7 +309,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           'Categoria Icono': '',
           'Controlar Stock': 'No',
           'Tamaño Imagen': 'large',
-          'Imagen': ''
+          'Imagen (URL)': ''
         }
       ]
     }
@@ -351,7 +387,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                 if (strValue) product.previousPrice = parseFloat(strValue)
                 break
               case 'categoria':
-                product.category = strValue || 'pizzas'
+                product.category = normalizeCategoryName(strValue || 'pizzas')
                 break
               case 'subcategoria':
                 if (strValue) product.subCategory = strValue
@@ -377,6 +413,8 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                 if (strValue) product.imageSize = strValue.toLowerCase()
                 break
               case 'imagen':
+              case 'imagen (url)':
+              case 'imagen (URL)':
                 product.image = strValue
                 break
               // Procesar variedades
@@ -458,28 +496,91 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           }
         }
 
-        // Agregar productos a Firestore
-        const productsRef = getProductsCollection(store.id)
-        let added = 0
-        for (const productData of productsToImport) {
-          try {
-            await addDoc(productsRef, productData)
-            added++
-          } catch (error) {
-            console.error('Error agregando producto:', error)
-          }
-        }
+        // Analizar cambios
+        const newProductNames = new Set(productsToImport.map(p => p.name.toLowerCase()))
+        const currentProductNames = new Set(products.map(p => p.name.toLowerCase()))
+        
+        const toDelete = products.filter(p => !newProductNames.has(p.name.toLowerCase()))
+        const toAdd = productsToImport.filter(p => !currentProductNames.has(p.name.toLowerCase()))
+        const toEdit = productsToImport.filter(p => {
+          const current = products.find(cp => cp.name.toLowerCase() === p.name.toLowerCase())
+          if (!current) return false
+          // Comparar propiedades clave
+          return current.basePrice !== p.basePrice || 
+                 current.description !== p.description ||
+                 current.category !== p.category ||
+                 current.available !== p.available ||
+                 current.featured !== p.featured
+        })
 
-        alert(`Se importaron ${added} productos correctamente`)
-        await loadProducts(store.id)
+        // Guardar datos para confirmación
+        setPendingImportData({
+          productsToImport,
+          totalCurrent: products.length,
+          totalNew: productsToImport.length,
+          toDelete: toDelete.length,
+          toAdd: toAdd.length,
+          toEdit: toEdit.length,
+          deleteList: toDelete.slice(0, 5).map(p => p.name), // Primeros 5
+          addList: toAdd.slice(0, 5).map(p => p.name)
+        })
+        setIsImportConfirmOpen(true)
+        setIsImporting(false)
+        return
       } catch (error) {
-        console.error('Error importando Excel:', error)
-        alert('Error al importar el archivo Excel')
-      } finally {
+        console.error('Error procesando Excel:', error)
+        alert('Error al procesar el archivo Excel')
         setIsImporting(false)
       }
     }
     input.click()
+  }
+
+  const handleConfirmImport = async () => {
+    if (!pendingImportData || !store) return
+    
+    setIsImportConfirmOpen(false)
+    setIsImporting(true)
+    
+    try {
+      // Eliminar todos los productos actuales
+      const productsRef = getProductsCollection(store.id)
+      const currentSnapshot = await getDocs(productsRef)
+      const deletePromises = currentSnapshot.docs.map(async (docSnap) => {
+        await deleteDoc(doc(db, 'apps', 'control-store', 'stores', store.id, 'products', docSnap.id))
+      })
+      await Promise.all(deletePromises)
+
+      // Agregar productos nuevos
+      let added = 0
+      for (const productData of pendingImportData.productsToImport) {
+        try {
+          await addDoc(productsRef, productData)
+          added++
+        } catch (error) {
+          console.error('Error agregando producto:', error)
+        }
+      }
+
+      // Sincronizar categorías desde los productos
+      if (added > 0) {
+        await syncCategoriesFromProducts(store.id, pendingImportData.productsToImport)
+        // Recargar categorías actualizadas
+        const updatedCategories = await getStoreCategories(store.id)
+        if (updatedCategories.length > 0) {
+          setCategoriesList(updatedCategories)
+        }
+      }
+
+      alert(`✅ Se importaron ${added} productos correctamente`)
+      await loadProducts(store.id)
+      setPendingImportData(null)
+    } catch (error) {
+      console.error('Error importando Excel:', error)
+      alert('Error al importar el archivo Excel')
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   if (isLoading) {
@@ -525,13 +626,8 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     )
   }
 
-  // Categorías y secciones
-  const categories = [
-    { id: "pizzas", name: "Pizzas", icon: "pizza", order: 1 },
-    { id: "empanadas", name: "Empanadas", icon: "utensils", order: 2 },
-    { id: "bebidas", name: "Bebidas", icon: "glass-water", order: 3 },
-    { id: "postres", name: "Postres", icon: "cake", order: 4 }
-  ]
+  // Secciones
+  const categories = categoriesList
 
   const sections = [
     { id: "destacados", name: "Destacados", description: "Nuestros platos más populares", order: 1 },
@@ -652,7 +748,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {categories.find((c) => c.id === product.category)?.name || product.category}
+                            {product.category}
                           </Badge>
                         </TableCell>
                         <TableCell>{formatPrice(product.basePrice)}</TableCell>
@@ -719,6 +815,155 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
               setEditingProduct(null)
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de confirmación de importación */}
+      <Dialog open={isImportConfirmOpen} onOpenChange={setIsImportConfirmOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <FileText className="w-6 h-6 text-primary" />
+              Confirmar Importación de Productos
+            </DialogTitle>
+            <DialogDescription>
+              Revisa los cambios que se realizarán en tu catálogo de productos
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingImportData && (
+            <div className="space-y-4">
+              {/* Estadísticas principales */}
+              <div className="grid grid-cols-3 gap-4">
+                <Card className="bg-red-50 border-red-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingDown className="w-5 h-5 text-red-600" />
+                      <CardTitle className="text-sm font-medium text-red-700">Se Eliminarán</CardTitle>
+                    </div>
+                    <p className="text-2xl font-bold text-red-600">{pendingImportData.toDelete}</p>
+                    <p className="text-xs text-red-500">productos actuales</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-green-50 border-green-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="w-5 h-5 text-green-600" />
+                      <CardTitle className="text-sm font-medium text-green-700">Se Agregarán</CardTitle>
+                    </div>
+                    <p className="text-2xl font-bold text-green-600">{pendingImportData.toAdd}</p>
+                    <p className="text-xs text-green-500">productos nuevos</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <RefreshCw className="w-5 h-5 text-blue-600" />
+                      <CardTitle className="text-sm font-medium text-blue-700">Se Actualizarán</CardTitle>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-600">{pendingImportData.toEdit}</p>
+                    <p className="text-xs text-blue-500">productos modificados</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Resumen */}
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-2">
+                  <strong className="text-foreground">Total actual:</strong> {pendingImportData.totalCurrent} productos
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Total después:</strong> {pendingImportData.totalNew} productos
+                </p>
+              </div>
+
+              {/* Lista de productos a eliminar */}
+              {pendingImportData.toDelete > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-600">
+                      <AlertTriangle className="w-4 h-4" />
+                      Productos que se eliminarán (primeros 5):
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-1">
+                      {pendingImportData.deleteList.map((name: string, idx: number) => (
+                        <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          {name}
+                        </li>
+                      ))}
+                      {pendingImportData.toDelete > 5 && (
+                        <li className="text-xs text-muted-foreground italic">
+                          ...y {pendingImportData.toDelete - 5} más
+                        </li>
+                      )}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Lista de productos nuevos */}
+              {pendingImportData.toAdd > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Productos nuevos (primeros 5):
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-1">
+                      {pendingImportData.addList.map((name: string, idx: number) => (
+                        <li key={idx} className="text-sm text-muted-foreground flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                          {name}
+                        </li>
+                      ))}
+                      {pendingImportData.toAdd > 5 && (
+                        <li className="text-xs text-muted-foreground italic">
+                          ...y {pendingImportData.toAdd - 5} más
+                        </li>
+                      )}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Advertencia */}
+              <Card className="border-amber-200 bg-amber-50">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-900 mb-1">
+                        Esta acción reemplazará todos tus productos actuales
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        Asegúrate de haber exportado un respaldo si deseas conservar los productos actuales
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => {
+              setIsImportConfirmOpen(false)
+              setPendingImportData(null)
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmImport} className="gap-2">
+              <Upload className="w-4 h-4" />
+              Confirmar Importación
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

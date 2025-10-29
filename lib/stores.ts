@@ -14,7 +14,7 @@ import {
   Timestamp,
   arrayUnion 
 } from 'firebase/firestore'
-import type { Store, Invitation, User, Product } from './types'
+import type { Store, Invitation, User, Product, Category } from './types'
 
 // Constante para el nombre de la app en la estructura compartida
 const APP_ID = 'control-store'
@@ -263,5 +263,109 @@ export async function updateProductInStore(storeId: string, productId: string, p
 export async function deleteProductFromStore(storeId: string, productId: string): Promise<void> {
   const productRef = doc(db, 'apps', APP_ID, 'stores', storeId, 'products', productId)
   await deleteDoc(productRef)
+}
+
+// ===== CATEGORIES =====
+
+const getCategoriesCollection = (storeId: string) => {
+  checkFirebaseConnection()
+  return collection(db, 'apps', APP_ID, 'stores', storeId, 'categories')
+}
+
+// Normalizar nombre de categoría: primera letra mayúscula, resto minúsculas
+export function normalizeCategoryName(name: string): string {
+  if (!name) return ''
+  // Convertir todo a minúsculas y capitalizar primera letra
+  return name.toLowerCase().trim().charAt(0).toUpperCase() + name.toLowerCase().trim().slice(1)
+}
+
+// Obtener todas las categorías de una tienda
+export async function getStoreCategories(storeId: string): Promise<Category[]> {
+  const categoriesRef = getCategoriesCollection(storeId)
+  const snapshot = await getDocs(categoriesRef)
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Category[]
+}
+
+// Crear o actualizar categorías automáticamente desde productos
+export async function syncCategoriesFromProducts(storeId: string, products: Product[]): Promise<Category[]> {
+  // Extraer categorías únicas de los productos
+  const categoryNames = new Set<string>()
+  
+  products.forEach(product => {
+    if (product.category && product.category.trim()) {
+      categoryNames.add(normalizeCategoryName(product.category))
+    }
+  })
+  
+  // Obtener categorías existentes
+  const existingCategories = await getStoreCategories(storeId)
+  const existingCategoryNames = new Set(existingCategories.map(c => c.name))
+  
+  // Crear nuevas categorías
+  const newCategories: string[] = []
+  categoryNames.forEach(categoryName => {
+    if (!existingCategoryNames.has(categoryName)) {
+      newCategories.push(categoryName)
+    }
+  })
+  
+  // Crear documentos para nuevas categorías
+  const categoriesRef = getCategoriesCollection(storeId)
+  let order = existingCategories.length + 1
+  
+  for (const categoryName of newCategories) {
+    const categoryId = categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    await setDoc(doc(categoriesRef, categoryId), {
+      name: categoryName,
+      id: categoryId,
+      order: order++,
+      icon: getCategoryIcon(categoryName),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  }
+  
+  // Retornar todas las categorías (existentes + nuevas)
+  return await getStoreCategories(storeId)
+}
+
+// Función auxiliar para asignar iconos según el nombre de la categoría
+function getCategoryIcon(categoryName: string): string {
+  const name = categoryName.toLowerCase()
+  
+  // Mapeo de iconos comunes
+  const iconMap: Record<string, string> = {
+    'pizza': 'pizza',
+    'pizzas': 'pizza',
+    'empanada': 'utensils',
+    'empanadas': 'utensils',
+    'bebida': 'glass-water',
+    'bebidas': 'glass-water',
+    'bebida sin alcohol': 'glass-water',
+    'bebida con alcohol': 'wine',
+    'cerveza': 'wine',
+    'cervezas': 'wine',
+    'postre': 'cake',
+    'postres': 'cake',
+    'helado': 'ice-cream',
+    'helados': 'ice-cream',
+    'pasta': 'utensils',
+    'pastas': 'utensils',
+    'hamburguesa': 'utensils',
+    'hamburguesas': 'utensils',
+    'ensalada': 'utensils',
+    'ensaladas': 'utensils',
+    'entrada': 'utensils',
+    'entradas': 'utensils',
+    'principal': 'utensils',
+    'principales': 'utensils',
+    'sandwich': 'utensils',
+    'sandwiches': 'utensils',
+  }
+  
+  return iconMap[name] || 'utensils'
 }
 
