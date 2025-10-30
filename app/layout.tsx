@@ -22,7 +22,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={`font-sans antialiased`}>
         {children}
-        <Analytics />
+        <Analytics debug />
       </body>
     </html>
   )
