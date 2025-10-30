@@ -26,49 +26,82 @@ export async function POST(req: NextRequest) {
     }
 
     const { email, key } = getServiceAccount()
+    try {
+      console.info('[sheets:create] env', {
+        sa_email_tail: email?.slice(-20),
+        has_key: !!key,
+        has_parent: !!process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID,
+      })
+    } catch {}
     const scopes = [
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/spreadsheets',
     ]
     const jwt = new google.auth.JWT(email, undefined, key, scopes)
-    await jwt.authorize()
+    try {
+      await jwt.authorize()
+      console.info('[sheets:create] SA authorized')
+    } catch (e: any) {
+      console.error('[sheets:create] authorize error', e?.message)
+      throw e
+    }
 
     const sheets = google.sheets({ version: 'v4', auth: jwt })
     const drive = google.drive({ version: 'v3', auth: jwt })
 
     // 1) Crear Spreadsheet
     const title = `Control Store - ${storeName} - Productos`
-    const createRes = await sheets.spreadsheets.create({
+    let createRes
+    try {
+      createRes = await sheets.spreadsheets.create({
       requestBody: {
         properties: { title },
         sheets: [{ properties: { title: 'Productos' } }],
       },
-    })
+      })
+      console.info('[sheets:create] spreadsheet created')
+    } catch (e: any) {
+      console.error('[sheets:create] create spreadsheet error', e?.message)
+      throw e
+    }
     const spreadsheetId = createRes.data.spreadsheetId as string
     const editUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
 
     // 2) Mover a carpeta padre si está configurada
     const parent = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID
     if (parent) {
-      await drive.files.update({
-        fileId: spreadsheetId,
-        addParents: parent,
-        fields: 'id, parents',
-      })
+      try {
+        await drive.files.update({
+          fileId: spreadsheetId,
+          addParents: parent,
+          fields: 'id, parents',
+        })
+        console.info('[sheets:create] moved to parent folder')
+      } catch (e: any) {
+        console.error('[sheets:create] move file error', e?.message)
+        throw e
+      }
     }
 
     // 3) Compartir con el cliente (opcional)
     if (shareWithEmail) {
-      await drive.permissions.create({
-        fileId: spreadsheetId,
-        requestBody: { role: 'writer', type: 'user', emailAddress: shareWithEmail },
-        sendNotificationEmail: false,
-      })
+      try {
+        await drive.permissions.create({
+          fileId: spreadsheetId,
+          requestBody: { role: 'writer', type: 'user', emailAddress: shareWithEmail },
+          sendNotificationEmail: false,
+        })
+        console.info('[sheets:create] shared with user', { email_tail: shareWithEmail.slice(-10) })
+      } catch (e: any) {
+        console.error('[sheets:create] share error', e?.message)
+        throw e
+      }
     }
 
     return NextResponse.json({ success: true, spreadsheetId, editUrl })
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    console.error('[sheets:create] failed', { message: e?.message })
+    return NextResponse.json({ success: false, error: e?.message || 'Unknown error' }, { status: 500 })
   }
 }
 
