@@ -65,14 +65,6 @@ export async function createStore(data: Omit<Store, 'id' | 'createdAt' | 'update
     updatedAt: serverTimestamp(),
   })
   
-  // Sincronizar con API externa de ControlFile
-  try {
-    await syncStoreWithControlFileAPI(docRef.id, data)
-  } catch (error) {
-    console.warn('Error sincronizando tienda con ControlFile API:', error)
-    // No lanzamos error para no interrumpir el flujo principal
-  }
-  
   return docRef.id
 }
 
@@ -550,50 +542,4 @@ function getCategoryIcon(categoryName: string): string {
   return iconMap[name] || 'utensils'
 }
 
-// ===== CONTROLFILE API SYNC =====
-
-// Función para sincronizar tienda con la API externa de ControlFile
-async function syncStoreWithControlFileAPI(storeId: string, storeData: Omit<Store, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
-  try {
-    const { getAuth } = await import('firebase/auth')
-    const auth = getAuth()
-    const user = auth.currentUser
-    
-    if (!user) {
-      throw new Error('Usuario no autenticado')
-    }
-    
-    const token = await user.getIdToken()
-    const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://controlfile.onrender.com"
-    
-    // Crear la tienda en la API de ControlFile
-    const response = await fetch(`${API_BASE_URL}/api/stores`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        id: storeId,
-        name: storeData.name,
-        slug: storeData.slug,
-        ownerEmail: storeData.ownerEmail,
-        ownerId: storeData.ownerId,
-        config: storeData.config,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }),
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Error creando tienda en ControlFile API: ${errorData.error || response.statusText}`)
-    }
-    
-    console.log('✅ Tienda sincronizada con ControlFile API:', storeId)
-  } catch (error) {
-    console.error('Error sincronizando tienda con ControlFile API:', error)
-    throw error
-  }
-}
 
