@@ -15,8 +15,10 @@ export function StoreStatsCards({
   featuredProducts = 0,
   totalStores = 0 
 }: StoreStatsCardsProps) {
-  // Si tiene stores, mostrar grid de 4 columnas, sino 3
-  const gridCols = totalStores > 0 ? "md:grid-cols-4" : "md:grid-cols-3"
+  // Grid responsive: 1 col en móvil, 2 en tablet pequeño, 3 en tablet/desktop pequeño, 4 en desktop si hay stores
+  const gridCols = totalStores > 0 
+    ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4" 
+    : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
   
   return (
     <div className={`grid ${gridCols} gap-4`}>

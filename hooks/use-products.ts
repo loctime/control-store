@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { getProductsCollection } from "@/lib/stores"
@@ -8,7 +8,7 @@ export function useProducts(storeId: string) {
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setIsLoading(true)
     try {
       const productsRef = getProductsCollection(storeId)
@@ -23,27 +23,27 @@ export function useProducts(storeId: string) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [storeId])
 
-  const createProduct = async (productData: Omit<Product, "id">) => {
+  const createProduct = useCallback(async (productData: Omit<Product, "id">) => {
     const productsRef = getProductsCollection(storeId)
     const docRef = await addDoc(productsRef, productData)
     const newProduct = { ...productData, id: docRef.id } as Product
-    setProducts([...products, newProduct])
+    setProducts(prev => [...prev, newProduct])
     return newProduct
-  }
+  }, [storeId])
 
-  const updateProduct = async (productId: string, productData: Partial<Product>) => {
+  const updateProduct = useCallback(async (productId: string, productData: Partial<Product>) => {
     const productRef = doc(db, 'apps', 'control-store', 'stores', storeId, 'products', productId)
     await updateDoc(productRef, productData as any)
-    setProducts(products.map(p => p.id === productId ? { ...p, ...productData } : p))
-  }
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...productData } : p))
+  }, [storeId])
 
-  const deleteProduct = async (productId: string) => {
+  const deleteProduct = useCallback(async (productId: string) => {
     const productRef = doc(db, 'apps', 'control-store', 'stores', storeId, 'products', productId)
     await deleteDoc(productRef)
-    setProducts(products.filter(p => p.id !== productId))
-  }
+    setProducts(prev => prev.filter(p => p.id !== productId))
+  }, [storeId])
 
   return {
     products,
