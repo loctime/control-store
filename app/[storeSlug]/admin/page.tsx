@@ -54,7 +54,7 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
   const excelExport = useExcelExport(products, resolvedParams.storeSlug)
   
   // Hook de Google Sheets
-  const sheets = useGoogleSheets(store?.id, loadProducts)
+  const sheets = useGoogleSheets(store?.id, store?.config.name, loadProducts)
   
   // Memoize cálculos
   const stats = useMemo(() => ({
