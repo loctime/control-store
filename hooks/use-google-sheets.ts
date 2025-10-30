@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
-import { getSheetInfo, syncProductsFromSheets, createSheetBackup, createGoogleSheet } from "@/lib/controlfile-api"
+import { db } from "@/lib/firebase"
+import { doc, getDoc } from "firebase/firestore"
 
 export function useGoogleSheets(storeId: string | undefined, storeName: string | undefined, onSyncComplete: () => void) {
   const [sheetInfo, setSheetInfo] = useState<any>(null)
@@ -19,9 +20,14 @@ export function useGoogleSheets(storeId: string | undefined, storeName: string |
     if (!storeId) return
     
     try {
-      const response = await getSheetInfo(storeId)
-      if (response.success && response.data) {
-        setSheetInfo(response.data)
+      const ref = doc(db as any, 'apps', 'control-store', 'stores', storeId)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) { setSheetInfo(null); return }
+      const data: any = snap.data()
+      const spreadsheetId = data?.spreadsheetId
+      const editUrl = data?.googleSheetsUrl
+      if (spreadsheetId || editUrl) {
+        setSheetInfo({ sheetId: spreadsheetId || 'unknown', editUrl: editUrl || '', lastSyncedAt: new Date().toISOString() })
       } else {
         setSheetInfo(null)
       }
@@ -65,45 +71,13 @@ export function useGoogleSheets(storeId: string | undefined, storeName: string |
 
 
   const handleSync = async () => {
-    if (!storeId) return
-    
-    setIsSyncing(true)
-    try {
-      const response = await syncProductsFromSheets(storeId)
-      
-      if (response.success) {
-        await loadSheetInfo()
-        onSyncComplete()
-        alert(`✅ Se sincronizaron ${response.data?.count || 0} productos desde Google Sheets\n\nLos cambios ya están disponibles en la tienda pública.`)
-      } else {
-        alert(`Error: ${response.error || 'No se pudo sincronizar'}`)
-      }
-    } catch (error) {
-      console.error('Error sincronizando:', error)
-      alert('Error al sincronizar desde Google Sheets')
-    } finally {
-      setIsSyncing(false)
-    }
+    // En el flujo con Service Account y sin backend de ControlFile,
+    // la sincronización automática no está implementada aún.
+    alert('Sincronización desde Sheets no disponible en esta versión')
   }
 
   const handleCreateBackup = async () => {
-    if (!storeId) return
-    
-    setIsCreatingBackup(true)
-    try {
-      const response = await createSheetBackup(storeId)
-      
-      if (response.success && response.data) {
-        alert(`✅ Backup creado correctamente!\n\nURL: ${response.data.backupUrl}`)
-      } else {
-        alert(`Error: ${response.error || 'No se pudo crear el backup'}`)
-      }
-    } catch (error) {
-      console.error('Error creando backup:', error)
-      alert('Error al crear el backup')
-    } finally {
-      setIsCreatingBackup(false)
-    }
+    alert('Backup no disponible en esta versión')
   }
 
   const handleSaveConfig = async () => {
