@@ -37,13 +37,28 @@ export function useGoogleSheets(storeId: string | undefined, onSyncComplete: () 
     setIsCreatingSheet(true)
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+      const redirectUri = `${origin}/api/oauth/google/callback`
+      const scopes = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets'
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&` +
-        `redirect_uri=${origin}/api/oauth/google/callback&` +
-        `scope=https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets&` +
+        `client_id=${clientId}&` +
+        `redirect_uri=${redirectUri}&` +
+        `scope=${scopes}&` +
         `response_type=code&` +
         `access_type=offline&` +
         `state=${storeId}`
+
+      // Logs seguros para diagnóstico en producción
+      try {
+        const masked = clientId ? clientId.replace(/^(.{6}).*(.{6})$/, '$1••••••••••$2') : 'NO_CLIENT_ID'
+        console.info('[Sheets] auth params', {
+          origin,
+          clientId: masked,
+          redirectUri,
+          scopes,
+          storeId
+        })
+      } catch {}
       
       const popup = window.open(authUrl, 'google-auth', 'width=500,height=600')
       
@@ -52,9 +67,11 @@ export function useGoogleSheets(storeId: string | undefined, onSyncComplete: () 
         
         if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
           const { authCode } = event.data
+          console.info('[Sheets] callback OK, received authCode (masked)')
           createSheetWithAuthCode(authCode)
           window.removeEventListener('message', messageListener)
         } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+          console.warn('[Sheets] callback error', event.data)
           alert('Error en la autenticación de Google')
           setIsCreatingSheet(false)
           window.removeEventListener('message', messageListener)

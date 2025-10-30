@@ -14,6 +14,16 @@ function GoogleCallbackContent() {
     const error = searchParams.get('error')
     const state = searchParams.get('state')
 
+    try {
+      console.info('[Sheets][callback] params', {
+        hasCode: !!code,
+        hasError: !!error,
+        state,
+        origin: window.location.origin,
+        href: window.location.href
+      })
+    } catch {}
+
     if (error) {
       // Error en la autenticación
       if (window.opener) {
