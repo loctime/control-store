@@ -62,15 +62,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
     available: products.filter(p => p.available).length,
     featured: products.filter(p => p.featured).length
   }), [products])
-  
-  // Format price function
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   if (isLoading) {
     return (
@@ -138,7 +129,6 @@ export default function StoreAdminPage({ params }: { params: Promise<{ storeSlug
           <CardContent>
             <ProductsTable
               products={products}
-              formatPrice={formatPrice}
               onEdit={productForm.handleEditProduct}
               onDelete={async (productId: string) => {
                 if (!confirm("¿Estás seguro de eliminar este producto?")) return

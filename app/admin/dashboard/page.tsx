@@ -7,14 +7,14 @@ import { isAuthenticated, logout, getCurrentUser, onAuthChange } from "@/lib/aut
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProductForm } from "@/components/admin/product-form"
 import { InvitationLinkGenerator } from "@/components/admin/invitation-link-generator"
 import { StoresList } from "@/components/admin/stores-list"
+import { ProductsTable } from "@/components/admin/products-table"
+import { StoreStatsCards } from "@/components/admin/store-stats-cards"
 import type { Product } from "@/lib/types"
-import { Plus, Edit, Trash2, LogOut, Store, Users, Palette, Building2 } from "lucide-react"
+import { Plus, LogOut, Store, Users, Palette, Building2 } from "lucide-react"
 import { loadProductsFromJSON } from "@/lib/data-loader"
 import { getAllStores } from "@/lib/stores"
 
@@ -137,14 +137,6 @@ export default function AdminDashboard() {
     setEditingProduct(null)
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -218,115 +210,23 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
               </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead>Precio</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No hay productos. Crea uno nuevo para comenzar.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    products.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-muted-foreground line-clamp-1">{product.description}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {categories.find((c) => c.id === product.category)?.name || product.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatPrice(product.basePrice)}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {product.available ? (
-                              <Badge variant="default" className="bg-green-500">
-                                Disponible
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">No disponible</Badge>
-                            )}
-                            {product.featured && <Badge variant="default">Destacado</Badge>}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button size="icon" variant="ghost" onClick={() => handleEditProduct(product)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
+              <CardContent>
+                <ProductsTable
+                  products={products}
+                  onEdit={handleEditProduct}
+                  onDelete={handleDeleteProduct}
+                />
+              </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        <div className="grid md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Total tiendas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">{stores.length}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Total productos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">{products.length}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Disponibles</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-green-500">{products.filter((p) => p.available).length}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Destacados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">{products.filter((p) => p.featured).length}</p>
-            </CardContent>
-          </Card>
-        </div>
+        <StoreStatsCards
+          totalStores={stores.length}
+          totalProducts={products.length}
+          availableProducts={products.filter((p) => p.available).length}
+          featuredProducts={products.filter((p) => p.featured).length}
+        />
       </main>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

@@ -5,15 +5,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2 } from "lucide-react"
 import type { Product } from "@/lib/types"
+import { formatPrice } from "@/lib/utils"
 
 interface ProductsTableProps {
   products: Product[]
-  formatPrice: (price: number) => string
   onEdit: (product: Product) => void
   onDelete: (productId: string) => void
 }
 
-export function ProductsTable({ products, formatPrice, onEdit, onDelete }: ProductsTableProps) {
+export function ProductsTable({ products, onEdit, onDelete }: ProductsTableProps) {
   if (products.length === 0) {
     return (
       <div className="rounded-md border">

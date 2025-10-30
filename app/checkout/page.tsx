@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, MessageCircle, StoreIcon, Truck } from "lucide-react"
 import Link from "next/link"
 import { generateWhatsAppMessage, sendWhatsAppOrder } from "@/lib/whatsapp"
+import { formatPrice } from "@/lib/utils"
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -30,14 +31,6 @@ export default function CheckoutPage() {
   const subtotal = getCartTotal()
   const deliveryFee = deliveryType === "delivery" && subtotal < storeConfig.minOrderAmount ? storeConfig.deliveryFee : 0
   const total = subtotal + deliveryFee
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
