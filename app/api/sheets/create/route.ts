@@ -76,35 +76,43 @@ export async function POST(req: NextRequest) {
     const sheets = google.sheets({ version: 'v4', auth: jwt })
     const drive = google.drive({ version: 'v3', auth: jwt })
 
-    // 1) Crear Spreadsheet (vía Drive para evitar restricciones en algunos entornos)
+    // 1) Crear Spreadsheet (sin parents primero para evitar problemas de cuota)
     const title = `Control Store - ${storeName} - Productos`
     let spreadsheetId: string
     try {
+      // Crear sin especificar parents (se crea en el Drive raíz de la SA, luego lo movemos)
       const fileRes = await drive.files.create({
         requestBody: {
           name: title,
           mimeType: 'application/vnd.google-apps.spreadsheet',
-          parents: process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID ? [process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID] : undefined,
         },
         fields: 'id',
         supportsAllDrives: true,
       })
       spreadsheetId = (fileRes.data.id || '') as string
       if (!spreadsheetId) throw new Error('No se obtuvo spreadsheetId')
-      console.info('[sheets:create] spreadsheet created (drive.files.create)')
+      console.info('[sheets:create] spreadsheet created', { spreadsheetId_tail: spreadsheetId.slice(-8) })
     } catch (e: any) {
       console.error('[sheets:create] drive create error', e?.message)
       throw e
     }
     const editUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
 
-    // 2) Ya se creó en la carpeta; intento idempotente de asegurar parent (ignorable si falla)
+    // 2) Mover a la carpeta compartida (ignorar error si falla)
     const parent = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID
     if (parent) {
       try {
-        await drive.files.update({ fileId: spreadsheetId, addParents: parent, fields: 'id, parents', supportsAllDrives: true })
+        await drive.files.update({
+          fileId: spreadsheetId,
+          addParents: parent,
+          removeParents: undefined, // Mantener también en raíz si existe
+          fields: 'id, parents',
+          supportsAllDrives: true,
+        })
+        console.info('[sheets:create] moved to parent folder')
       } catch (e: any) {
-        console.warn('[sheets:create] ensure parent warning', e?.message)
+        console.warn('[sheets:create] move to folder warning', e?.message, '- Continuando sin mover')
+        // No lanzamos error, el archivo se creó exitosamente
       }
     }
 
