@@ -76,59 +76,55 @@ export async function POST(req: NextRequest) {
     const sheets = google.sheets({ version: 'v4', auth: jwt })
     const drive = google.drive({ version: 'v3', auth: jwt })
 
-    // 1) Crear Spreadsheet (sin parents primero para evitar problemas de cuota)
+    // 1) Crear Spreadsheet usando Sheets API directamente (no Drive API - evita problemas de cuota)
     const title = `Control Store - ${storeName} - Productos`
     let spreadsheetId: string
     try {
-      // Crear sin especificar parents (se crea en el Drive raíz de la SA, luego lo movemos)
-      const fileRes = await drive.files.create({
+      const createRes = await sheets.spreadsheets.create({
         requestBody: {
-          name: title,
-          mimeType: 'application/vnd.google-apps.spreadsheet',
+          properties: { title },
+          sheets: [{ properties: { title: 'Productos', gridProperties: { rowCount: 1000, columnCount: 10 } } }],
         },
-        fields: 'id',
-        supportsAllDrives: true,
       })
-      spreadsheetId = (fileRes.data.id || '') as string
+      spreadsheetId = createRes.data.spreadsheetId as string
       if (!spreadsheetId) throw new Error('No se obtuvo spreadsheetId')
-      console.info('[sheets:create] spreadsheet created', { spreadsheetId_tail: spreadsheetId.slice(-8) })
+      console.info('[sheets:create] spreadsheet created via Sheets API', { spreadsheetId_tail: spreadsheetId.slice(-8) })
     } catch (e: any) {
-      console.error('[sheets:create] drive create error', e?.message)
+      console.error('[sheets:create] sheets create error', e?.message)
       throw e
     }
     const editUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
 
-    // 2) Mover a la carpeta compartida (ignorar error si falla)
+    // 2) Intentar mover a la carpeta compartida (ignorar error si falla - el archivo ya está creado)
     const parent = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID
     if (parent) {
       try {
         await drive.files.update({
           fileId: spreadsheetId,
           addParents: parent,
-          removeParents: undefined, // Mantener también en raíz si existe
           fields: 'id, parents',
           supportsAllDrives: true,
         })
         console.info('[sheets:create] moved to parent folder')
       } catch (e: any) {
-        console.warn('[sheets:create] move to folder warning', e?.message, '- Continuando sin mover')
-        // No lanzamos error, el archivo se creó exitosamente
+        console.warn('[sheets:create] move to folder warning', e?.message, '- El archivo está creado pero no se pudo mover')
+        // No lanzamos error - el spreadsheet ya está creado y funcional
       }
     }
 
-    // 3) Compartir con el cliente (opcional)
+    // 3) Compartir con el cliente (importante - sin esto el cliente no puede acceder)
     if (shareWithEmail) {
       try {
-      await drive.permissions.create({
+        await drive.permissions.create({
           fileId: spreadsheetId,
           requestBody: { role: 'writer', type: 'user', emailAddress: shareWithEmail },
           sendNotificationEmail: false,
-        supportsAllDrives: true,
+          supportsAllDrives: true,
         })
         console.info('[sheets:create] shared with user', { email_tail: shareWithEmail.slice(-10) })
       } catch (e: any) {
-        console.error('[sheets:create] share error', e?.message)
-        throw e
+        console.warn('[sheets:create] share warning', e?.message, '- El archivo está creado pero no se pudo compartir automáticamente')
+        // No lanzamos error - el usuario puede compartirlo manualmente desde Drive
       }
     }
 
