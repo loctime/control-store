@@ -6,15 +6,42 @@ import { google } from 'googleapis'
 function getServiceAccount() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
   if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY faltante')
+  
   let parsed: any
   try {
+    // Intentar parsear directamente primero
     parsed = JSON.parse(raw)
-  } catch (e) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY inválido: debe ser JSON en una sola línea')
+  } catch (e: any) {
+    // Si falla, intentar normalizar saltos de línea
+    try {
+      // Reemplazar saltos de línea reales por \n escapado
+      const normalized = raw.replace(/\r?\n/g, '\\n').replace(/\r/g, '\\n')
+      parsed = JSON.parse(normalized)
+    } catch (e2: any) {
+      throw new Error(`GOOGLE_SERVICE_ACCOUNT_KEY inválido: ${e2.message}`)
+    }
   }
+  
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || parsed.client_email
-  const key = parsed.private_key
-  if (!email || !key) throw new Error('Service Account incompleta: client_email o private_key faltan')
+  let key = parsed.private_key
+  
+  if (!email || !key) {
+    throw new Error('Service Account incompleta: client_email o private_key faltan')
+  }
+  
+  // Normalizar el private_key: convertir cualquier forma de \n a saltos de línea reales
+  // Maneja: \\n (doble backslash), \n (backslash + n), y saltos reales
+  key = key
+    .replace(/\\\\n/g, '\n')  // \\n (doble backslash) -> salto real
+    .replace(/\\n/g, '\n')   // \n (escapado) -> salto real
+    .replace(/\r\n/g, '\n')  // Windows line endings
+    .replace(/\r/g, '\n')    // Mac line endings
+  
+  // Validar que la key tenga el formato PEM correcto
+  if (!key.includes('BEGIN PRIVATE KEY') || !key.includes('END PRIVATE KEY')) {
+    throw new Error('private_key no tiene formato PEM válido')
+  }
+  
   return { email, key }
 }
 
